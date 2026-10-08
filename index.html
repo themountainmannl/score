@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 1.9 -->
+<!-- Live Volleybal Scorer - Versie 2.1 (Auto-save) -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v1.9</title>
+  <title>Live Volleybal Scorer v2.1</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -12,9 +12,14 @@
     .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px; }
     .version-tag { font-size: 11px; color: #666; font-family: monospace; }
     
-    .timer-box { text-align: center; background: #1e1e1e; border: 1px solid #333; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
-    .timer { font-size: 44px; font-weight: bold; font-family: monospace; color: #34c759; margin: 8px 0; }
+    .timer-box { text-align: center; background: #1e1e1e; border: 1px solid #333; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+    .timer { font-size: 44px; font-weight: bold; font-family: monospace; color: #34c759; margin: 6px 0; }
+    .timer-hint { font-size: 12px; color: #888; margin-bottom: 8px; }
     
+    .swap-bar { text-align: center; margin-bottom: 15px; }
+    .btn-swap { background: #333; border: 1px solid #555; color: #fff; padding: 8px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    .btn-swap:active { background: #444; border-color: #007aff; }
+
     .scoreboard { display: flex; gap: 12px; justify-content: space-between; margin-bottom: 15px; }
     .team-card { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 14px; padding: 15px; text-align: center; display: flex; flex-direction: column; gap: 8px; }
     .team-card input { width: 100%; background: transparent; border: none; border-bottom: 2px solid #555; color: #fff; font-size: 18px; font-weight: bold; text-align: center; padding: 4px; }
@@ -31,15 +36,15 @@
     .btn-set { flex: 1; height: 34px; font-size: 12px; font-weight: bold; border-radius: 6px; border: 1px solid #3d3d3d; background: #1a1a1a; color: #aaa; cursor: pointer; }
     .btn-set:active { background: #333; color: #fff; }
 
-    .set-results-box { background: #181818; border: 1px dashed #3a3a3a; border-radius: 8px; padding: 10px 15px; margin-bottom: 20px; text-align: center; }
+    .set-results-box { background: #181818; border: 1px dashed #3a3a3a; border-radius: 8px; padding: 10px 15px; margin-bottom: 15px; text-align: center; }
     .set-results-title { font-size: 11px; text-transform: uppercase; color: #777; letter-spacing: 1px; margin-bottom: 4px; }
     .set-results-list { font-size: 15px; font-family: monospace; color: #ffcc00; font-weight: bold; }
 
-    .center-controls { text-align: center; margin: 15px 0 15px 0; display: flex; justify-content: center; gap: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a; }
-    .btn { padding: 12px 20px; font-size: 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
-    .btn-green { background: #34c759; color: white; }
+    .center-controls { text-align: center; margin: 15px 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding-top: 15px; border-top: 1px solid #2a2a2a; }
+    .btn { padding: 12px 18px; font-size: 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
     .btn-red { background: #ff3b30; color: white; }
-    .btn-gray { background: #444; color: white; }
+    .btn-gray { background: #333; color: white; border: 1px solid #444; }
+    .btn-reset { background: #222; color: #ff453a; border: 1px solid #552222; }
     
     .log-box { background: #0a0a0a; border: 1px solid #333; border-radius: 8px; padding: 10px; max-height: 130px; overflow-y: auto; font-family: monospace; font-size: 13px; color: #00ff66; margin-top: 10px; line-height: 1.4; }
   </style>
@@ -49,22 +54,26 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v1.9</span>
+    <span class="version-tag">v2.1</span>
   </div>
 
   <div class="timer-box">
-    <div style="font-size: 14px; color: #aaa;">Wedstrijdtijd (DJI Sync)</div>
+    <div class="timer-hint" id="timerStatusText">Timer start automatisch bij het eerste punt</div>
     <div class="timer" id="timerDisplay">00:00:00</div>
     <div>
-      <button class="btn btn-green" id="startBtn" onclick="toggleTimer()">▶ Start Timer (bij start DJI)</button>
+      <button class="btn btn-red" id="stopBtn" onclick="stopTimer()" style="display: none;">⏹ Stop Timer (Einde)</button>
       <button class="btn btn-gray" onclick="downloadSRT()">⬇ Download SRT</button>
     </div>
   </div>
 
+  <div class="swap-bar">
+    <button class="btn-swap" onclick="swapSides()">⇄ Wissel Speelhelft</button>
+  </div>
+
   <div class="scoreboard">
-    <!-- Team A -->
+    <!-- Linker Team (Standaard Zovoc) -->
     <div class="team-card">
-      <input type="text" id="teamAName" value="Team A">
+      <input type="text" id="teamAName" value="Zovoc" oninput="saveToStorage()">
       <div class="sets" id="teamASets">Sets: 0</div>
       <div class="score" id="scoreA">0</div>
       <button class="btn-score-plus" onclick="addPoint('A')">+1</button>
@@ -75,9 +84,9 @@
       </div>
     </div>
 
-    <!-- Team B -->
+    <!-- Rechter Team (Standaard Team B) -->
     <div class="team-card">
-      <input type="text" id="teamBName" value="Team B">
+      <input type="text" id="teamBName" value="Team B" oninput="saveToStorage()">
       <div class="sets" id="teamBSets">Sets: 0</div>
       <div class="score" id="scoreB">0</div>
       <button class="btn-score-plus" onclick="addPoint('B')">+1</button>
@@ -89,7 +98,7 @@
     </div>
   </div>
 
-  <!-- Weergave van afgeronde setstanden -->
+  <!-- Afgeronde setstanden -->
   <div class="set-results-box">
     <div class="set-results-title">Afgeronde Sets</div>
     <div class="set-results-list" id="setResultsDisplay">Nog geen sets voltooid</div>
@@ -98,18 +107,21 @@
   <div class="center-controls">
     <button class="btn btn-red" onclick="endSetManual()">Einde Set</button>
     <button class="btn btn-gray" onclick="undo()">Herstel Laatste Actie</button>
+    <button class="btn btn-reset" onclick="resetForm()">↺ Reset Formulier</button>
   </div>
 
-  <div class="log-box" id="logBox">Druk op "Start Timer" zodra de camera begint met opnemen...</div>
+  <div class="log-box" id="logBox">Klaar voor de start. Geef het eerste punt om de timer te starten...</div>
 </div>
 
 <script>
-  var APP_VERSION = "1.9";
+  var APP_VERSION = "2.1";
+  var STORAGE_KEY = "live_volley_scorer_state_v2";
 
   var startTime = null;
   var timerInterval = null;
   var isRunning = false;
-  var elapsedBeforePause = 0;
+  var timerStopped = false;
+  var finalElapsedTime = 0;
 
   var scoreA = 0, scoreB = 0;
   var setsA = 0, setsB = 0;
@@ -118,22 +130,119 @@
   var finishedSets = [];
   var log = [];
 
-  function getElapsedTime() {
-    if (!startTime) return elapsedBeforePause;
-    return elapsedBeforePause + ((Date.now() - startTime) / 1000);
+  function saveToStorage() {
+    var state = {
+      startTime: startTime,
+      isRunning: isRunning,
+      timerStopped: timerStopped,
+      finalElapsedTime: finalElapsedTime,
+      scoreA: scoreA,
+      scoreB: scoreB,
+      setsA: setsA,
+      setsB: setsB,
+      currentSet: currentSet,
+      isMatchOver: isMatchOver,
+      finishedSets: finishedSets,
+      log: log,
+      teamAName: document.getElementById('teamAName').value,
+      teamBName: document.getElementById('teamBName').value
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn("Kon niet opslaan in localStorage", e);
+    }
   }
 
-  function toggleTimer() {
-    var btn = document.getElementById('startBtn');
-    
-    if (!isRunning) {
+  function loadFromStorage() {
+    try {
+      var saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return false;
+      var state = JSON.parse(saved);
+
+      startTime = state.startTime;
+      isRunning = state.isRunning;
+      timerStopped = state.timerStopped;
+      finalElapsedTime = state.finalElapsedTime || 0;
+      scoreA = state.scoreA;
+      scoreB = state.scoreB;
+      setsA = state.setsA;
+      setsB = state.setsB;
+      currentSet = state.currentSet;
+      isMatchOver = state.isMatchOver;
+      finishedSets = state.finishedSets || [];
+      log = state.log || [];
+
+      if (state.teamAName) document.getElementById('teamAName').value = state.teamAName;
+      if (state.teamBName) document.getElementById('teamBName').value = state.teamBName;
+
+      if (isRunning && !timerStopped) {
+        timerInterval = setInterval(updateTimerDisplay, 250);
+        document.getElementById('timerStatusText').innerText = "Wedstrijdtijd loopt (DJI Sync)";
+        document.getElementById('stopBtn').style.display = "inline-block";
+      } else if (timerStopped) {
+        document.getElementById('timerStatusText').innerText = "Timer definitief gestopt";
+        document.getElementById('timerStatusText').style.color = "#ff3b30";
+      }
+
+      updateDisplay();
+      updateTimerDisplay();
+      renderLog();
+      return true;
+    } catch (e) {
+      console.warn("Kon opslag niet laden", e);
+      return false;
+    }
+  }
+
+  function resetForm() {
+    if (!confirm("Weet je zeker dat je het hele formulier wilt wissen en opnieuw wilt beginnen?")) {
+      return;
+    }
+    localStorage.removeItem(STORAGE_KEY);
+    clearInterval(timerInterval);
+
+    startTime = null;
+    timerInterval = null;
+    isRunning = false;
+    timerStopped = false;
+    finalElapsedTime = 0;
+
+    scoreA = 0; scoreB = 0;
+    setsA = 0; setsB = 0;
+    currentSet = 1;
+    isMatchOver = false;
+    finishedSets = [];
+    log = [];
+
+    document.getElementById('teamAName').value = "Zovoc";
+    document.getElementById('teamBName').value = "Team B";
+    document.getElementById('timerStatusText').innerText = "Timer start automatisch bij het eerste punt";
+    document.getElementById('timerStatusText').style.color = "#888";
+    document.getElementById('stopBtn').style.display = "none";
+
+    updateDisplay();
+    updateTimerDisplay();
+    document.getElementById('logBox').innerHTML = "Klaar voor de start. Geef het eerste punt om de timer te starten...";
+  }
+
+  function getElapsedTime() {
+    if (timerStopped) return finalElapsedTime;
+    if (!startTime) return 0;
+    return (Date.now() - startTime) / 1000;
+  }
+
+  function startTimerIfNeeded() {
+    if (!isRunning && !timerStopped) {
       startTime = Date.now();
       timerInterval = setInterval(updateTimerDisplay, 250);
       isRunning = true;
-      if (btn) {
-        btn.innerText = "⏸ Pauzeer Timer";
-        btn.className = "btn btn-red";
-      }
+      
+      var statusEl = document.getElementById('timerStatusText');
+      if (statusEl) statusEl.innerText = "Wedstrijdtijd loopt (DJI Sync)";
+      
+      var stopBtn = document.getElementById('stopBtn');
+      if (stopBtn) stopBtn.style.display = "inline-block";
 
       if (log.length === 0) {
         log.push({ 
@@ -141,18 +250,28 @@
           text: getScoreString(), 
           state: getCurrentState()
         });
-        renderLog();
       }
-    } else {
-      elapsedBeforePause += (Date.now() - startTime) / 1000;
-      startTime = null;
-      clearInterval(timerInterval);
-      isRunning = false;
-      if (btn) {
-        btn.innerText = "▶ Hervat Timer";
-        btn.className = "btn btn-green";
-      }
+      saveToStorage();
     }
+  }
+
+  function stopTimer() {
+    if (timerStopped) return;
+    finalElapsedTime = getElapsedTime();
+    clearInterval(timerInterval);
+    isRunning = false;
+    timerStopped = true;
+
+    var statusEl = document.getElementById('timerStatusText');
+    if (statusEl) {
+      statusEl.innerText = "Timer definitief gestopt";
+      statusEl.style.color = "#ff3b30";
+    }
+
+    var stopBtn = document.getElementById('stopBtn');
+    if (stopBtn) stopBtn.style.display = "none";
+
+    saveToStorage();
   }
 
   function updateTimerDisplay() {
@@ -172,14 +291,16 @@
       setsB: setsB,
       currentSet: currentSet,
       isMatchOver: isMatchOver,
-      finishedSets: [...finishedSets]
+      finishedSets: [...finishedSets],
+      teamAName: document.getElementById('teamAName').value,
+      teamBName: document.getElementById('teamBName').value
     };
   }
 
   function getScoreString() {
     var inA = document.getElementById('teamAName');
     var inB = document.getElementById('teamBName');
-    var tA = (inA && inA.value) ? inA.value : "Team A";
+    var tA = (inA && inA.value) ? inA.value : "Zovoc";
     var tB = (inB && inB.value) ? inB.value : "Team B";
     
     var setHistoryStr = "";
@@ -213,13 +334,13 @@
   }
 
   function recordState() {
-    if (!isRunning) return;
     log.push({
       time: getElapsedTime(),
       text: getScoreString(),
       state: getCurrentState()
     });
     renderLog();
+    saveToStorage();
   }
 
   function updateDisplay() {
@@ -256,6 +377,29 @@
         elResults.innerText = formatted;
         elResults.style.color = "#ffcc00";
       }
+    }
+  }
+
+  function swapSides() {
+    var inA = document.getElementById('teamAName');
+    var inB = document.getElementById('teamBName');
+    var tempName = inA.value;
+    inA.value = inB.value;
+    inB.value = tempName;
+
+    var tempScore = scoreA;
+    scoreA = scoreB;
+    scoreB = tempScore;
+
+    var tempSets = setsA;
+    setsA = setsB;
+    setsB = tempSets;
+
+    updateDisplay();
+    if (isRunning) {
+      recordState();
+    } else {
+      saveToStorage();
     }
   }
 
@@ -298,14 +442,12 @@
   }
 
   function addPoint(team) {
-    if (!isRunning) {
-      alert("Start eerst de timer!");
-      return;
-    }
     if (isMatchOver) {
-      alert("De wedstrijd is al afgelopen! Gebruik eventueel 'Herstel' om door te gaan.");
+      alert("De wedstrijd is afgelopen! Gebruik eventueel 'Herstel' om door te gaan.");
       return;
     }
+
+    startTimerIfNeeded();
 
     if (team === 'A') scoreA++;
     if (team === 'B') scoreB++;
@@ -316,7 +458,7 @@
   }
 
   function subtractPoint(team) {
-    if (!isRunning || isMatchOver) return;
+    if (isMatchOver) return;
     if (team === 'A' && scoreA > 0) scoreA--;
     if (team === 'B' && scoreB > 0) scoreB--;
     updateDisplay();
@@ -324,7 +466,6 @@
   }
 
   function adjustSet(team, delta) {
-    if (!isRunning) return;
     if (team === 'A') {
       setsA = Math.max(0, setsA + delta);
     } else {
@@ -335,7 +476,7 @@
   }
 
   function endSetManual() {
-    if (!isRunning || isMatchOver) return;
+    if (isMatchOver) return;
     handleSetEnd();
     updateDisplay();
     recordState();
@@ -352,8 +493,13 @@
       currentSet = last.currentSet;
       isMatchOver = last.isMatchOver;
       finishedSets = [...last.finishedSets];
+      
+      if (last.teamAName) document.getElementById('teamAName').value = last.teamAName;
+      if (last.teamBName) document.getElementById('teamBName').value = last.teamBName;
+
       updateDisplay();
       renderLog();
+      saveToStorage();
     }
   }
 
@@ -381,18 +527,18 @@
       }
     }
 
-    const now = new Date();
-    const maanden = [
+    var now = new Date();
+    var maanden = [
       "januari", "februari", "maart", "april", "mei", "juni",
       "juli", "augustus", "september", "oktober", "november", "december"
     ];
-    const dag = now.getDate();
-    const maand = maanden[now.getMonth()];
-    const jaar = now.getFullYear();
-    const uren = String(now.getHours()).padStart(2, '0');
-    const minuten = String(now.getMinutes()).padStart(2, '0');
+    var dag = now.getDate();
+    var maand = maanden[now.getMonth()];
+    var jaar = now.getFullYear();
+    var uren = String(now.getHours()).padStart(2, '0');
+    var minuten = String(now.getMinutes()).padStart(2, '0');
 
-    const fileName = `wedstrijd_score_${dag}_${maand}_${jaar}_${uren}-${minuten}.srt`;
+    var fileName = "wedstrijd_score_" + dag + "_" + maand + "_" + jaar + "_" + uren + "-" + minuten + ".srt";
 
     var blob = new Blob([srt], { type: 'text/plain;charset=utf-8' });
     var link = document.createElement("a");
@@ -402,6 +548,9 @@
     link.click();
     document.body.removeChild(link);
   }
+
+  // Initialisatie bij pagina-opening
+  loadFromStorage();
 </script>
 </body>
 </html>

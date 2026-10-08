@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 1.5 -->
+<!-- Live Volleybal Scorer - Versie 1.7 -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v1.5</title>
+  <title>Live Volleybal Scorer v1.7</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -31,7 +31,6 @@
     .btn-set { flex: 1; height: 34px; font-size: 12px; font-weight: bold; border-radius: 6px; border: 1px solid #3d3d3d; background: #1a1a1a; color: #aaa; cursor: pointer; }
     .btn-set:active { background: #333; color: #fff; }
 
-    /* Blok voor afgeronde setstanden */
     .set-results-box { background: #181818; border: 1px dashed #3a3a3a; border-radius: 8px; padding: 10px 15px; margin-bottom: 20px; text-align: center; }
     .set-results-title { font-size: 11px; text-transform: uppercase; color: #777; letter-spacing: 1px; margin-bottom: 4px; }
     .set-results-list { font-size: 15px; font-family: monospace; color: #ffcc00; font-weight: bold; }
@@ -49,8 +48,8 @@
 
 <div class="container">
   <div class="header-bar">
-    <span style="font-size: 12px; color: #888;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v1.5</span>
+    <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
+    <span class="version-tag">v1.7</span>
   </div>
 
   <div class="timer-box">
@@ -90,7 +89,7 @@
     </div>
   </div>
 
-  <!-- Weergave van afgesloten setstanden -->
+  <!-- Weergave van afgeronde setstanden -->
   <div class="set-results-box">
     <div class="set-results-title">Afgeronde Sets</div>
     <div class="set-results-list" id="setResultsDisplay">Nog geen sets voltooid</div>
@@ -105,7 +104,7 @@
 </div>
 
 <script>
-  var APP_VERSION = "1.5";
+  var APP_VERSION = "1.7";
 
   var startTime = null;
   var timerInterval = null;
@@ -115,7 +114,8 @@
   var scoreA = 0, scoreB = 0;
   var setsA = 0, setsB = 0;
   var currentSet = 1;
-  var finishedSets = []; // Array met strings: bv. ["25-21", "23-25"]
+  var isMatchOver = false;
+  var finishedSets = [];
   var log = [];
 
   function getElapsedTime() {
@@ -139,14 +139,7 @@
         log.push({ 
           time: 0, 
           text: getScoreString(), 
-          state: { 
-            scoreA: scoreA, 
-            scoreB: scoreB, 
-            setsA: setsA, 
-            setsB: setsB, 
-            currentSet: currentSet,
-            finishedSets: [...finishedSets]
-          } 
+          state: getCurrentState()
         });
         renderLog();
       }
@@ -171,6 +164,18 @@
     if (el) el.innerText = h + ":" + m + ":" + s;
   }
 
+  function getCurrentState() {
+    return {
+      scoreA: scoreA,
+      scoreB: scoreB,
+      setsA: setsA,
+      setsB: setsB,
+      currentSet: currentSet,
+      isMatchOver: isMatchOver,
+      finishedSets: [...finishedSets]
+    };
+  }
+
   function getScoreString() {
     var inA = document.getElementById('teamAName');
     var inB = document.getElementById('teamBName');
@@ -180,6 +185,10 @@
     var setHistoryStr = "";
     if (finishedSets.length > 0) {
       setHistoryStr = " [" + finishedSets.join(", ") + "]";
+    }
+    
+    if (isMatchOver) {
+      return "Eindstand (" + setsA + "-" + setsB + ") | " + tA + " - " + tB + setHistoryStr;
     }
     
     return "Set " + currentSet + " (" + setsA + "-" + setsB + ") | " + tA + " " + scoreA + " - " + scoreB + " " + tB + setHistoryStr;
@@ -205,14 +214,7 @@
     log.push({
       time: getElapsedTime(),
       text: getScoreString(),
-      state: { 
-        scoreA: scoreA, 
-        scoreB: scoreB, 
-        setsA: setsA, 
-        setsB: setsB, 
-        currentSet: currentSet,
-        finishedSets: [...finishedSets]
-      }
+      state: getCurrentState()
     });
     renderLog();
   }
@@ -229,7 +231,16 @@
     if (elB) elB.innerText = scoreB;
     if (elSetsA) elSetsA.innerText = "Sets: " + setsA;
     if (elSetsB) elSetsB.innerText = "Sets: " + setsB;
-    if (elInd) elInd.innerText = "Set " + currentSet;
+    
+    if (elInd) {
+      if (isMatchOver) {
+        elInd.innerText = "Wedstrijd Afgelopen (" + setsA + "-" + setsB + ")";
+        elInd.style.color = "#34c759";
+      } else {
+        elInd.innerText = "Set " + currentSet;
+        elInd.style.color = "#888";
+      }
+    }
 
     if (elResults) {
       if (finishedSets.length === 0) {
@@ -252,13 +263,35 @@
     } else {
       setsB++;
     }
-    scoreA = 0;
-    scoreB = 0;
-    currentSet++;
+
+    // Regels:
+    // Sets 1 t/m 3 gaan altijd door naar de volgende set.
+    // Na Set 4: als het 2-2 is, volgt Set 5. Is het 4-0 of 3-1, dan stopt het direct.
+    // Na Set 5: stopt het altijd.
+    if (currentSet < 4) {
+      scoreA = 0;
+      scoreB = 0;
+      currentSet++;
+    } else if (currentSet === 4) {
+      if (setsA === 2 && setsB === 2) {
+        scoreA = 0;
+        scoreB = 0;
+        currentSet = 5; // Beslissende 5e set tot 15
+      } else {
+        isMatchOver = true;
+        scoreA = 0;
+        scoreB = 0;
+      }
+    } else {
+      // Set 5 is voltooid
+      isMatchOver = true;
+      scoreA = 0;
+      scoreB = 0;
+    }
   }
 
   function checkSetWon() {
-    var target = (currentSet >= 5) ? 15 : 25;
+    var target = (currentSet === 5) ? 15 : 25;
     var diff = Math.abs(scoreA - scoreB);
 
     if ((scoreA >= target || scoreB >= target) && diff >= 2) {
@@ -271,6 +304,11 @@
       alert("Start eerst de timer!");
       return;
     }
+    if (isMatchOver) {
+      alert("De wedstrijd is al afgelopen! Gebruik eventueel 'Herstel' om door te gaan.");
+      return;
+    }
+
     if (team === 'A') scoreA++;
     if (team === 'B') scoreB++;
 
@@ -280,7 +318,7 @@
   }
 
   function subtractPoint(team) {
-    if (!isRunning) return;
+    if (!isRunning || isMatchOver) return;
     if (team === 'A' && scoreA > 0) scoreA--;
     if (team === 'B' && scoreB > 0) scoreB--;
     updateDisplay();
@@ -299,7 +337,7 @@
   }
 
   function endSetManual() {
-    if (!isRunning) return;
+    if (!isRunning || isMatchOver) return;
     handleSetEnd();
     updateDisplay();
     recordState();
@@ -314,6 +352,7 @@
       setsA = last.setsA;
       setsB = last.setsB;
       currentSet = last.currentSet;
+      isMatchOver = last.isMatchOver;
       finishedSets = [...last.finishedSets];
       updateDisplay();
       renderLog();
@@ -344,18 +383,18 @@
       }
     }
 
-    var now = new Date();
-    var maanden = [
+    const now = new Date();
+    const maanden = [
       "januari", "februari", "maart", "april", "mei", "juni",
       "juli", "augustus", "september", "oktober", "november", "december"
     ];
-    var dag = now.getDate();
-    var maand = maanden[now.getMonth()];
-    var jaar = now.getFullYear();
-    var uren = String(now.getHours()).padStart(2, '0');
-    var minuten = String(now.getMinutes()).padStart(2, '0');
+    const dag = now.getDate();
+    const maand = maanden[now.getMonth()];
+    const jaar = now.getFullYear();
+    const uren = String(now.getHours()).padStart(2, '0');
+    const minuten = String(now.getMinutes()).padStart(2, '0');
 
-    var fileName = "wedstrijd_score_" + dag + "_" + maand + "_" + jaar + "_" + uren + "-" + minuten + ".srt";
+    const fileName = `wedstrijd_score_${dag}_${maand}_${jaar}_${uren}-${minuten}.srt`;
 
     var blob = new Blob([srt], { type: 'text/plain;charset=utf-8' });
     var link = document.createElement("a");

@@ -183,7 +183,7 @@
     return `${hours}:${mins}:${secs},${ms}`;
   }
 
-  function downloadSRT() {
+function downloadSRT() {
     if (log.length === 0) return;
     let srt = "";
     const totalDuration = getElapsedTime() + 10;
@@ -199,10 +199,24 @@
       }
     }
 
+    // Datum en tijd formatteren (bijv: 8_oktober_2026_15-26)
+    const now = new Date();
+    const maanden = [
+      "januari", "februari", "maart", "april", "mei", "juni",
+      "juli", "augustus", "september", "oktober", "november", "december"
+    ];
+    const dag = now.getDate();
+    const maand = maanden[now.getMonth()];
+    const jaar = now.getFullYear();
+    const uren = String(now.getHours()).padStart(2, '0');
+    const minuten = String(now.getMinutes()).padStart(2, '0');
+
+    const fileName = `wedstrijd_score_${dag}_${maand}_${jaar}_${uren}-${minuten}.srt`;
+
     const blob = new Blob([srt], { type: 'text/srt;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "live_wedstrijd_score.srt";
+    link.download = fileName;
     link.click();
   }
 </script>

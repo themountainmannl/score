@@ -1,111 +1,60 @@
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Live Volleybal Scorer</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; -webkit-user-select: none; user-select: none; }
-    .container { width: 100%; max-width: 600px; }
-    .timer-box { text-align: center; background: #222; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
-    .timer { font-size: 42px; font-weight: bold; font-family: monospace; color: #34c759; margin: 5px 0; }
-    
-    .scoreboard { display: flex; gap: 12px; justify-content: space-between; margin-bottom: 40px; }
-    .team-card { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 14px; padding: 15px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
-    .team-card input { width: 90%; background: transparent; border: none; border-bottom: 2px solid #555; color: #fff; font-size: 18px; font-weight: bold; text-align: center; padding: 4px; }
-    .sets { font-size: 14px; color: #888; }
-    .score { font-size: 70px; font-weight: bold; margin: 5px 0; font-variant-numeric: tabular-nums; line-height: 1; }
-    
-    /* Grote +1 knop */
-    .btn-score-plus { width: 100%; height: 85px; font-size: 32px; font-weight: bold; border-radius: 12px; border: none; background: #007aff; color: white; cursor: pointer; }
-    .btn-score-plus:active { background: #0056b3; }
-    
-    /* Kleinere -1 knop per team */
-    .btn-score-minus { width: 100%; height: 42px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: #bbb; cursor: pointer; }
-    .btn-score-minus:active { background: #3a3a3a; color: #fff; }
-
-    /* Extra tussenruimte voor setbeheer */
-    .center-controls { text-align: center; margin: 30px 0 20px 0; display: flex; justify-content: center; gap: 15px; padding-top: 10px; border-top: 1px solid #222; }
-    .btn { padding: 12px 22px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
-    .btn-green { background: #34c759; color: white; }
-    .btn-red { background: #ff3b30; color: white; }
-    .btn-gray { background: #444; color: white; }
-    
-    .log-box { background: #0a0a0a; border: 1px solid #333; border-radius: 8px; padding: 10px; max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 13px; color: #00ff66; margin-top: 10px; }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <div class="timer-box">
-    <div style="font-size: 14px; color: #aaa;">Wedstrijdtijd (DJI Sync)</div>
-    <div class="timer" id="timerDisplay">00:00:00</div>
-    <div>
-      <button class="btn btn-green" id="startBtn" onclick="toggleTimer()">▶ Start Timer (bij start DJI)</button>
-      <button class="btn btn-gray" onclick="downloadSRT()">⬇ Download SRT</button>
-    </div>
-  </div>
-
-  <div class="scoreboard">
-    <!-- Team A -->
-    <div class="team-card">
-      <input type="text" id="teamAName" value="Team A">
-      <div class="sets" id="teamASets">Sets: 0</div>
-      <div class="score" id="scoreA">0</div>
-      <button class="btn-score-plus" onclick="addPoint('A')">+1</button>
-      <button class="btn-score-minus" onclick="subtractPoint('A')">-1</button>
-    </div>
-
-    <!-- Team B -->
-    <div class="team-card">
-      <input type="text" id="teamBName" value="Team B">
-      <div class="sets" id="teamBSets">Sets: 0</div>
-      <div class="score" id="scoreB">0</div>
-      <button class="btn-score-plus" onclick="addPoint('B')">+1</button>
-      <button class="btn-score-minus" onclick="subtractPoint('B')">-1</button>
-    </div>
-  </div>
-
-  <div class="center-controls">
-    <button class="btn btn-red" onclick="endSet()">Einde Set</button>
-    <button class="btn btn-gray" onclick="undo()">Herstel Laatste Actie</button>
-  </div>
-
-  <div class="log-box" id="logBox">Tik op "Start Timer" zodra de camera begint te filmen...</div>
-</div>
-
 <script>
   let startTime = null;
   let timerInterval = null;
   let isRunning = false;
+  let elapsedBeforePause = 0;
 
   let scoreA = 0, scoreB = 0;
   let setsA = 0, setsB = 0;
   let currentSet = 1;
   let log = [];
+  let wakeLock = null;
+
+  // Scherm wakker houden op iOS / Safari
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+      }
+    } catch (err) {
+      console.log("WakeLock niet beschikbaar:", err);
+    }
+  }
 
   function getElapsedTime() {
-    if (!startTime) return 0;
-    return (Date.now() - startTime) / 1000;
+    if (!startTime) return elapsedBeforePause;
+    return elapsedBeforePause + ((Date.now() - startTime) / 1000);
   }
 
   function toggleTimer() {
     const btn = document.getElementById('startBtn');
+    
     if (!isRunning) {
+      // Start of hervat
       startTime = Date.now();
-      timerInterval = setInterval(updateTimerDisplay, 200);
+      timerInterval = setInterval(updateTimerDisplay, 250);
       isRunning = true;
       btn.innerText = "⏸ Pauzeer Timer";
       btn.className = "btn btn-red";
-      log = [{ time: 0, text: getScoreString(), state: { scoreA, scoreB, setsA, setsB, currentSet } }];
-      renderLog();
+      
+      requestWakeLock();
+
+      if (log.length === 0) {
+        log = [{ time: 0, text: getScoreString(), state: { scoreA, scoreB, setsA, setsB, currentSet } }];
+        renderLog();
+      }
     } else {
+      // Pauzeer
+      elapsedBeforePause += (Date.now() - startTime) / 1000;
+      startTime = null;
       clearInterval(timerInterval);
       isRunning = false;
       btn.innerText = "▶ Hervat Timer";
       btn.className = "btn btn-green";
+      
+      if (wakeLock) {
+        wakeLock.release().then(() => { wakeLock = null; });
+      }
     }
   }
 
@@ -211,4 +160,35 @@
     const totalDuration = getElapsedTime() + 10;
 
     for (let i = 0; i < log.length; i++) {
-      const startTime = log[i].
+      const startTimeVal = log[i].time;
+      const endTimeVal = (i < log.length - 1) ? log[i + 1].time : totalDuration;
+      
+      if (endTimeVal > startTimeVal) {
+        srt += `${i + 1}\n`;
+        srt += `${formatSRTTime(startTimeVal)} --> ${formatSRTTime(endTimeVal)}\n`;
+        srt += `${log[i].text}\n\n`;
+      }
+    }
+
+    const now = new Date();
+    const maanden = [
+      "januari", "februari", "maart", "april", "mei", "juni",
+      "juli", "augustus", "september", "oktober", "november", "december"
+    ];
+    const dag = now.getDate();
+    const maand = maanden[now.getMonth()];
+    const jaar = now.getFullYear();
+    const uren = String(now.getHours()).padStart(2, '0');
+    const minuten = String(now.getMinutes()).padStart(2, '0');
+
+    const fileName = `wedstrijd_score_${dag}_${maand}_${jaar}_${uren}-${minuten}.srt`;
+
+    const blob = new Blob([srt], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+</script>

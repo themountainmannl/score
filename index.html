@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 1.4 -->
+<!-- Live Volleybal Scorer - Versie 1.5 -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v1.4</title>
+  <title>Live Volleybal Scorer v1.5</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -15,7 +15,7 @@
     .timer-box { text-align: center; background: #1e1e1e; border: 1px solid #333; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
     .timer { font-size: 44px; font-weight: bold; font-family: monospace; color: #34c759; margin: 8px 0; }
     
-    .scoreboard { display: flex; gap: 12px; justify-content: space-between; margin-bottom: 25px; }
+    .scoreboard { display: flex; gap: 12px; justify-content: space-between; margin-bottom: 15px; }
     .team-card { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 14px; padding: 15px; text-align: center; display: flex; flex-direction: column; gap: 8px; }
     .team-card input { width: 100%; background: transparent; border: none; border-bottom: 2px solid #555; color: #fff; font-size: 18px; font-weight: bold; text-align: center; padding: 4px; }
     .sets { font-size: 16px; font-weight: bold; color: #34c759; margin-top: 2px; }
@@ -27,12 +27,16 @@
     .btn-score-minus { width: 100%; height: 40px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: #bbb; cursor: pointer; }
     .btn-score-minus:active { background: #3a3a3a; color: #fff; }
 
-    /* Handmatige Setknoppen */
     .set-controls { display: flex; gap: 6px; margin-top: 4px; }
     .btn-set { flex: 1; height: 34px; font-size: 12px; font-weight: bold; border-radius: 6px; border: 1px solid #3d3d3d; background: #1a1a1a; color: #aaa; cursor: pointer; }
     .btn-set:active { background: #333; color: #fff; }
 
-    .center-controls { text-align: center; margin: 20px 0 15px 0; display: flex; justify-content: center; gap: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a; }
+    /* Blok voor afgeronde setstanden */
+    .set-results-box { background: #181818; border: 1px dashed #3a3a3a; border-radius: 8px; padding: 10px 15px; margin-bottom: 20px; text-align: center; }
+    .set-results-title { font-size: 11px; text-transform: uppercase; color: #777; letter-spacing: 1px; margin-bottom: 4px; }
+    .set-results-list { font-size: 15px; font-family: monospace; color: #ffcc00; font-weight: bold; }
+
+    .center-controls { text-align: center; margin: 15px 0 15px 0; display: flex; justify-content: center; gap: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a; }
     .btn { padding: 12px 20px; font-size: 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
     .btn-green { background: #34c759; color: white; }
     .btn-red { background: #ff3b30; color: white; }
@@ -46,7 +50,7 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v1.4</span>
+    <span class="version-tag">v1.5</span>
   </div>
 
   <div class="timer-box">
@@ -86,6 +90,12 @@
     </div>
   </div>
 
+  <!-- Weergave van afgesloten setstanden -->
+  <div class="set-results-box">
+    <div class="set-results-title">Afgeronde Sets</div>
+    <div class="set-results-list" id="setResultsDisplay">Nog geen sets voltooid</div>
+  </div>
+
   <div class="center-controls">
     <button class="btn btn-red" onclick="endSetManual()">Einde Set</button>
     <button class="btn btn-gray" onclick="undo()">Herstel Laatste Actie</button>
@@ -95,7 +105,7 @@
 </div>
 
 <script>
-  var APP_VERSION = "1.4";
+  var APP_VERSION = "1.5";
 
   var startTime = null;
   var timerInterval = null;
@@ -105,6 +115,7 @@
   var scoreA = 0, scoreB = 0;
   var setsA = 0, setsB = 0;
   var currentSet = 1;
+  var finishedSets = []; // Array met strings: bv. ["25-21", "23-25"]
   var log = [];
 
   function getElapsedTime() {
@@ -128,7 +139,14 @@
         log.push({ 
           time: 0, 
           text: getScoreString(), 
-          state: { scoreA: scoreA, scoreB: scoreB, setsA: setsA, setsB: setsB, currentSet: currentSet } 
+          state: { 
+            scoreA: scoreA, 
+            scoreB: scoreB, 
+            setsA: setsA, 
+            setsB: setsB, 
+            currentSet: currentSet,
+            finishedSets: [...finishedSets]
+          } 
         });
         renderLog();
       }
@@ -158,7 +176,13 @@
     var inB = document.getElementById('teamBName');
     var tA = (inA && inA.value) ? inA.value : "Team A";
     var tB = (inB && inB.value) ? inB.value : "Team B";
-    return "Set " + currentSet + " (" + setsA + "-" + setsB + ") | " + tA + " " + scoreA + " - " + scoreB + " " + tB;
+    
+    var setHistoryStr = "";
+    if (finishedSets.length > 0) {
+      setHistoryStr = " [" + finishedSets.join(", ") + "]";
+    }
+    
+    return "Set " + currentSet + " (" + setsA + "-" + setsB + ") | " + tA + " " + scoreA + " - " + scoreB + " " + tB + setHistoryStr;
   }
 
   function renderLog() {
@@ -181,7 +205,14 @@
     log.push({
       time: getElapsedTime(),
       text: getScoreString(),
-      state: { scoreA: scoreA, scoreB: scoreB, setsA: setsA, setsB: setsB, currentSet: currentSet }
+      state: { 
+        scoreA: scoreA, 
+        scoreB: scoreB, 
+        setsA: setsA, 
+        setsB: setsB, 
+        currentSet: currentSet,
+        finishedSets: [...finishedSets]
+      }
     });
     renderLog();
   }
@@ -192,11 +223,38 @@
     var elSetsA = document.getElementById('teamASets');
     var elSetsB = document.getElementById('teamBSets');
     var elInd = document.getElementById('setIndicator');
+    var elResults = document.getElementById('setResultsDisplay');
+
     if (elA) elA.innerText = scoreA;
     if (elB) elB.innerText = scoreB;
     if (elSetsA) elSetsA.innerText = "Sets: " + setsA;
     if (elSetsB) elSetsB.innerText = "Sets: " + setsB;
     if (elInd) elInd.innerText = "Set " + currentSet;
+
+    if (elResults) {
+      if (finishedSets.length === 0) {
+        elResults.innerText = "Nog geen sets voltooid";
+        elResults.style.color = "#777";
+      } else {
+        var formatted = finishedSets.map(function(s, idx) {
+          return "S" + (idx + 1) + ": " + s;
+        }).join("  |  ");
+        elResults.innerText = formatted;
+        elResults.style.color = "#ffcc00";
+      }
+    }
+  }
+
+  function handleSetEnd() {
+    finishedSets.push(scoreA + "-" + scoreB);
+    if (scoreA > scoreB) {
+      setsA++;
+    } else {
+      setsB++;
+    }
+    scoreA = 0;
+    scoreB = 0;
+    currentSet++;
   }
 
   function checkSetWon() {
@@ -204,14 +262,7 @@
     var diff = Math.abs(scoreA - scoreB);
 
     if ((scoreA >= target || scoreB >= target) && diff >= 2) {
-      if (scoreA > scoreB) {
-        setsA++;
-      } else {
-        setsB++;
-      }
-      scoreA = 0;
-      scoreB = 0;
-      currentSet++;
+      handleSetEnd();
     }
   }
 
@@ -223,9 +274,7 @@
     if (team === 'A') scoreA++;
     if (team === 'B') scoreB++;
 
-    // Controleer automatisch op setwinst
     checkSetWon();
-
     updateDisplay();
     recordState();
   }
@@ -251,10 +300,7 @@
 
   function endSetManual() {
     if (!isRunning) return;
-    if (scoreA > scoreB) setsA++;
-    else if (scoreB > scoreA) setsB++;
-    scoreA = 0; scoreB = 0;
-    currentSet++;
+    handleSetEnd();
     updateDisplay();
     recordState();
   }
@@ -268,6 +314,7 @@
       setsA = last.setsA;
       setsB = last.setsB;
       currentSet = last.currentSet;
+      finishedSets = [...last.finishedSets];
       updateDisplay();
       renderLog();
     }

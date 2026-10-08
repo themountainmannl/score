@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Live Volleybal Scorer</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; -webkit-user-select: none; user-select: none; }
+    .container { width: 100%; max-width: 600px; }
+    .timer-box { text-align: center; background: #222; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
+    .timer { font-size: 40px; font-weight: bold; font-family: monospace; color: #34c759; margin: 5px 0; }
+    .scoreboard { display: flex; gap: 10px; justify-content: space-between; margin-bottom: 15px; }
+    .team-card { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 15px; text-align: center; }
+    .team-card input { width: 90%; background: transparent; border: none; border-bottom: 2px solid #555; color: #fff; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
+    .sets { font-size: 14px; color: #888; margin-bottom: 10px; }
+    .score { font-size: 64px; font-weight: bold; margin: 10px 0; font-variant-numeric: tabular-nums; }
+    .btn-score { width: 100%; height: 75px; font-size: 26px; font-weight: bold; border-radius: 10px; border: none; background: #007aff; color: white; cursor: pointer; }
+    .btn-score:active { background: #0056b3; }
+    .center-controls { text-align: center; margin: 15px 0; display: flex; justify-content: center; gap: 10px; }
+    .btn { padding: 10px 20px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
+    .btn-green { background: #34c759; color: white; }
+    .btn-red { background: #ff3b30; color: white; }
+    .btn-gray { background: #444; color: white; }
+    .log-box { background: #0a0a0a; border: 1px solid #333; border-radius: 8px; padding: 10px; max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 13px; color: #00ff66; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="timer-box">
+    <div style="font-size: 14px; color: #aaa;">Wedstrijdtijd (DJI Sync)</div>
+    <div class="timer" id="timerDisplay">00:00:00</div>
+    <div>
+      <button class="btn btn-green" id="startBtn" onclick="toggleTimer()">▶ Start Timer (bij start DJI)</button>
+      <button class="btn btn-gray" onclick="downloadSRT()">⬇ Download SRT</button>
+    </div>
+  </div>
+
+  <div class="scoreboard">
+    <div class="team-card">
+      <input type="text" id="teamAName" value="Team A">
+      <div class="sets" id="teamASets">Sets: 0</div>
+      <div class="score" id="scoreA">0</div>
+      <button class="btn-score" onclick="addPoint('A')">+1 Punt</button>
+    </div>
+
+    <div class="team-card">
+      <input type="text" id="teamBName" value="Team B">
+      <div class="sets" id="teamBSets">Sets: 0</div>
+      <div class="score" id="scoreB">0</div>
+      <button class="btn-score" onclick="addPoint('B')">+1 Punt</button>
+    </div>
+  </div>
+
+  <div class="center-controls">
+    <button class="btn btn-red" onclick="endSet()">Einde Set</button>
+    <button class="btn btn-gray" onclick="undo()">Herstel</button>
+  </div>
+
+  <div class="log-box" id="logBox">Tik op "Start Timer" zodra de camera begint te filmen...</div>
+</div>
+
+<script>
+  let startTime = null;
+  let timerInterval = null;
+  let isRunning = false;
+
+  let scoreA = 0, scoreB = 0;
+  let setsA = 0, setsB = 0;
+  let currentSet = 1;
+  let log = [];
+
+  function getElapsedTime() {
+    if (!startTime) return 0;
+    return (Date.now() - startTime) / 1000;
+  }
+
+  function toggleTimer() {
+    const btn = document.getElementById('startBtn');
+    if (!isRunning) {
+      startTime = Date.now();
+      timerInterval = setInterval(updateTimerDisplay, 200);
+      isRunning = true;
+      btn.innerText = "⏸ Pauzeer Timer";
+      btn.className = "btn btn-red";
+      log = [{ time: 0, text: getScoreString(), state: { scoreA, scoreB, setsA, setsB, currentSet } }];
+      renderLog();
+    } else {
+      clearInterval(timerInterval);
+      isRunning = false;
+      btn.innerText = "▶ Hervat Timer";
+      btn.className = "btn btn-green";
+    }
+  }
+
+  function updateTimerDisplay() {
+    const totalSec = Math.floor(getElapsedTime());
+    const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+    const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+    const s = String(totalSec % 60).padStart(2, '0');
+    document.getElementById('timerDisplay').innerText = `${h}:${m}:${s}`;
+  }
+
+  function getScoreString() {
+    const tA = document.getElementById('teamAName').value || "Team A";
+    const tB = document.getElementById('teamBName').value || "Team B";
+    return `Set ${currentSet} (${setsA}-${setsB}) | ${tA} ${scoreA} - ${scoreB} ${tB}`;
+  }
+
+  function renderLog() {
+    const logBox = document.getElementById('logBox');
+    if (log.length === 0) {
+      logBox.innerHTML = "Nog geen punten geregistreerd...";
+      return;
+    }
+    logBox.innerHTML = log.map((item, idx) => {
+      const min = Math.floor(item.time / 60);
+      const sec = Math.floor(item.time % 60);
+      const tStr = `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+      return `[${tStr}] #${idx + 1}: ${item.text}`;
+    }).reverse().join("<br>");
+  }
+
+  function recordState() {
+    if (!isRunning) return;
+    log.push({
+      time: getElapsedTime(),
+      text: getScoreString(),
+      state: { scoreA, scoreB, setsA, setsB, currentSet }
+    });
+    renderLog();
+  }
+
+  function updateDisplay() {
+    document.getElementById('scoreA').innerText = scoreA;
+    document.getElementById('scoreB').innerText = scoreB;
+    document.getElementById('teamASets').innerText = `Sets: ${setsA}`;
+    document.getElementById('teamBSets').innerText = `Sets: ${setsB}`;
+  }
+
+  function addPoint(team) {
+    if (!isRunning) {
+      alert("Start eerst de timer zodra de DJI begint met opnemen!");
+      return;
+    }
+    if (team === 'A') scoreA++;
+    if (team === 'B') scoreB++;
+    updateDisplay();
+    recordState();
+  }
+
+  function endSet() {
+    if (!isRunning) return;
+    if (scoreA > scoreB) setsA++;
+    else if (scoreB > scoreA) setsB++;
+    scoreA = 0; scoreB = 0;
+    currentSet++;
+    updateDisplay();
+    recordState();
+  }
+
+  function undo() {
+    if (log.length > 1) {
+      log.pop();
+      const last = log[log.length - 1].state;
+      scoreA = last.scoreA;
+      scoreB = last.scoreB;
+      setsA = last.setsA;
+      setsB = last.setsB;
+      currentSet = last.currentSet;
+      updateDisplay();
+      renderLog();
+    }
+  }
+
+  function formatSRTTime(seconds) {
+    const hours = String(Math.floor(seconds / 3600)).padStart(2, '0');
+    const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+    const secs = String(Math.floor(seconds % 60)).padStart(2, '0');
+    const ms = String(Math.floor((seconds % 1) * 1000)).padStart(3, '0');
+    return `${hours}:${mins}:${secs},${ms}`;
+  }
+
+  function downloadSRT() {
+    if (log.length === 0) return;
+    let srt = "";
+    const totalDuration = getElapsedTime() + 10;
+
+    for (let i = 0; i < log.length; i++) {
+      const startTime = log[i].time;
+      const endTime = (i < log.length - 1) ? log[i + 1].time : totalDuration;
+      
+      if (endTime > startTime) {
+        srt += `${i + 1}\n`;
+        srt += `${formatSRTTime(startTime)} --> ${formatSRTTime(endTime)}\n`;
+        srt += `${log[i].text}\n\n`;
+      }
+    }
+
+    const blob = new Blob([srt], { type: 'text/srt;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "live_wedstrijd_score.srt";
+    link.click();
+  }
+</script>
+</body>
+</html>

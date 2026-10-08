@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 2.3 (Thuis/Uit Schakelaar) -->
+<!-- Live Volleybal Scorer - Versie 2.4 (Groot & Centraal Setoverzicht) -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v2.3</title>
+  <title>Live Volleybal Scorer v2.4</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -30,7 +30,12 @@
     .scoreboard { display: flex; gap: 12px; justify-content: space-between; margin-bottom: 15px; }
     .team-card { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 14px; padding: 15px; text-align: center; display: flex; flex-direction: column; gap: 8px; }
     .team-card input { width: 100%; background: transparent; border: none; border-bottom: 2px solid #555; color: #fff; font-size: 18px; font-weight: bold; text-align: center; padding: 4px; }
-    .sets { font-size: 16px; font-weight: bold; color: #34c759; margin-top: 2px; }
+    
+    /* Groene setstanden: groter en uitgelijnd naar het midden */
+    .sets { font-size: 24px; font-weight: bold; color: #34c759; margin-top: 4px; line-height: 1; font-variant-numeric: tabular-nums; }
+    .sets-left { text-align: right; padding-right: 8px; }
+    .sets-right { text-align: left; padding-left: 8px; }
+
     .score { font-size: 68px; font-weight: bold; margin: 2px 0; font-variant-numeric: tabular-nums; line-height: 1; }
     
     .btn-score-plus { width: 100%; height: 85px; font-size: 32px; font-weight: bold; border-radius: 12px; border: none; background: #007aff; color: white; cursor: pointer; }
@@ -61,7 +66,7 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v2.3</span>
+    <span class="version-tag">v2.4</span>
   </div>
 
   <!-- Thuis of Uit Schakelaar -->
@@ -90,7 +95,7 @@
     <!-- Linker schermhelft -->
     <div class="team-card">
       <input type="text" id="uiTeamLeft" value="Zovoc" oninput="onNameChange('left')">
-      <div class="sets" id="uiSetsLeft">Sets: 0</div>
+      <div class="sets sets-left" id="uiSetsLeft">0</div>
       <div class="score" id="uiScoreLeft">0</div>
       <button class="btn-score-plus" onclick="addPoint('left')">+1</button>
       <button class="btn-score-minus" onclick="subtractPoint('left')">-1</button>
@@ -103,7 +108,7 @@
     <!-- Rechter schermhelft -->
     <div class="team-card">
       <input type="text" id="uiTeamRight" value="Team B" oninput="onNameChange('right')">
-      <div class="sets" id="uiSetsRight">Sets: 0</div>
+      <div class="sets sets-right" id="uiSetsRight">0</div>
       <div class="score" id="uiScoreRight">0</div>
       <button class="btn-score-plus" onclick="addPoint('right')">+1</button>
       <button class="btn-score-minus" onclick="subtractPoint('right')">-1</button>
@@ -130,8 +135,8 @@
 </div>
 
 <script>
-  var APP_VERSION = "2.3";
-  var STORAGE_KEY = "live_volley_scorer_state_v2_3";
+  var APP_VERSION = "2.4";
+  var STORAGE_KEY = "live_volley_scorer_state_v2_4";
 
   var startTime = null;
   var timerInterval = null;
@@ -139,23 +144,17 @@
   var timerStopped = false;
   var finalElapsedTime = 0;
 
-  // Teams intern:
-  // Zovoc is intern teamZ, de tegenstander is teamOpp
   var teamZovocName = "Zovoc";
   var teamOppName = "Team B";
   var scoreZ = 0, scoreOpp = 0;
   var setsZ = 0, setsOpp = 0;
 
-  // Wedstrijdtype: 'home' (Zovoc links in SRT) of 'away' (Zovoc rechts in SRT)
   var matchType = 'home';
-
-  // Visuele weergave: als isSwapped=false staat Zovoc links op het scherm.
-  // Als isSwapped=true staat Zovoc rechts op het scherm.
   var isSwapped = false;
 
   var currentSet = 1;
   var isMatchOver = false;
-  var finishedSets = []; // opgeslagen in SRT volgorde: "thuis - uit"
+  var finishedSets = [];
   var log = [];
 
   function setMatchType(type) {
@@ -355,7 +354,6 @@
     };
   }
 
-  // Berekent de weergave volgens de gekozen Thuis/Uit optie
   function getScoreString() {
     var srtTeamLeft = (matchType === 'home') ? teamZovocName : teamOppName;
     var srtTeamRight = (matchType === 'home') ? teamOppName : teamZovocName;
@@ -407,7 +405,6 @@
   }
 
   function updateDisplay() {
-    // Op het scherm: isSwapped bepaalt of Zovoc links of rechts staat
     var nameLeft = isSwapped ? teamOppName : teamZovocName;
     var nameRight = isSwapped ? teamZovocName : teamOppName;
     var scoreLeft = isSwapped ? scoreOpp : scoreZ;
@@ -419,8 +416,10 @@
     document.getElementById('uiTeamRight').value = nameRight;
     document.getElementById('uiScoreLeft').innerText = scoreLeft;
     document.getElementById('uiScoreRight').innerText = scoreRight;
-    document.getElementById('uiSetsLeft').innerText = "Sets: " + setsLeft;
-    document.getElementById('uiSetsRight').innerText = "Sets: " + setsRight;
+    
+    // Alleen de kale cijfers
+    document.getElementById('uiSetsLeft').innerText = setsLeft;
+    document.getElementById('uiSetsRight').innerText = setsRight;
     
     var elInd = document.getElementById('setIndicator');
     if (elInd) {

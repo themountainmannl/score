@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 2.2 (Vaste SRT-oriëntatie) -->
+<!-- Live Volleybal Scorer - Versie 2.3 (Thuis/Uit Schakelaar) -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v2.2</title>
+  <title>Live Volleybal Scorer v2.3</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -12,6 +12,13 @@
     .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px; }
     .version-tag { font-size: 11px; color: #666; font-family: monospace; }
     
+    /* Wedstrijdtype Schakelaar */
+    .match-type-box { background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 6px; display: flex; gap: 8px; margin-bottom: 12px; align-items: center; justify-content: space-between; }
+    .match-type-label { font-size: 13px; color: #aaa; margin-left: 6px; font-weight: bold; }
+    .match-type-buttons { display: flex; gap: 6px; }
+    .btn-toggle { background: #262626; border: 1px solid #444; color: #aaa; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
+    .btn-toggle.active { background: #007aff; color: #fff; border-color: #007aff; }
+
     .timer-box { text-align: center; background: #1e1e1e; border: 1px solid #333; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
     .timer { font-size: 44px; font-weight: bold; font-family: monospace; color: #34c759; margin: 6px 0; }
     .timer-hint { font-size: 12px; color: #888; margin-bottom: 8px; }
@@ -54,7 +61,16 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v2.2</span>
+    <span class="version-tag">v2.3</span>
+  </div>
+
+  <!-- Thuis of Uit Schakelaar -->
+  <div class="match-type-box">
+    <div class="match-type-label">SRT-volgorde:</div>
+    <div class="match-type-buttons">
+      <button class="btn-toggle active" id="btnHome" onclick="setMatchType('home')">Thuis (Zovoc links)</button>
+      <button class="btn-toggle" id="btnAway" onclick="setMatchType('away')">Uit (Zovoc rechts)</button>
+    </div>
   </div>
 
   <div class="timer-box">
@@ -67,7 +83,7 @@
   </div>
 
   <div class="swap-bar">
-    <button class="btn-swap" onclick="swapSides()">⇄ Wissel Speelhelft (Alleen knoppen)</button>
+    <button class="btn-swap" onclick="swapSides()">⇄ Wissel Speelhelft (Visueel)</button>
   </div>
 
   <div class="scoreboard">
@@ -114,8 +130,8 @@
 </div>
 
 <script>
-  var APP_VERSION = "2.2";
-  var STORAGE_KEY = "live_volley_scorer_state_v2_2";
+  var APP_VERSION = "2.3";
+  var STORAGE_KEY = "live_volley_scorer_state_v2_3";
 
   var startTime = null;
   var timerInterval = null;
@@ -123,27 +139,41 @@
   var timerStopped = false;
   var finalElapsedTime = 0;
 
-  // Logische teams voor SRT: Team 1 staat ALTIJD links in de SRT, Team 2 ALTIJD rechts
-  var team1Name = "Zovoc";
-  var team2Name = "Team B";
-  var score1 = 0, score2 = 0;
-  var sets1 = 0, sets2 = 0;
+  // Teams intern:
+  // Zovoc is intern teamZ, de tegenstander is teamOpp
+  var teamZovocName = "Zovoc";
+  var teamOppName = "Team B";
+  var scoreZ = 0, scoreOpp = 0;
+  var setsZ = 0, setsOpp = 0;
 
-  // Speelhelft status: als isSwapped=false staat Team 1 links op het scherm.
-  // Als isSwapped=true staat Team 1 rechts op het scherm.
+  // Wedstrijdtype: 'home' (Zovoc links in SRT) of 'away' (Zovoc rechts in SRT)
+  var matchType = 'home';
+
+  // Visuele weergave: als isSwapped=false staat Zovoc links op het scherm.
+  // Als isSwapped=true staat Zovoc rechts op het scherm.
   var isSwapped = false;
 
   var currentSet = 1;
   var isMatchOver = false;
-  var finishedSets = []; // opgeslagen als "score1-score2"
+  var finishedSets = []; // opgeslagen in SRT volgorde: "thuis - uit"
   var log = [];
+
+  function setMatchType(type) {
+    matchType = type;
+    document.getElementById('btnHome').className = (matchType === 'home') ? "btn-toggle active" : "btn-toggle";
+    document.getElementById('btnAway').className = (matchType === 'away') ? "btn-toggle active" : "btn-toggle";
+    saveToStorage();
+    if (isRunning) {
+      recordState();
+    }
+  }
 
   function onNameChange(side) {
     var val = document.getElementById(side === 'left' ? 'uiTeamLeft' : 'uiTeamRight').value;
     if (!isSwapped) {
-      if (side === 'left') team1Name = val; else team2Name = val;
+      if (side === 'left') teamZovocName = val; else teamOppName = val;
     } else {
-      if (side === 'left') team2Name = val; else team1Name = val;
+      if (side === 'left') teamOppName = val; else teamZovocName = val;
     }
     saveToStorage();
   }
@@ -154,12 +184,13 @@
       isRunning: isRunning,
       timerStopped: timerStopped,
       finalElapsedTime: finalElapsedTime,
-      team1Name: team1Name,
-      team2Name: team2Name,
-      score1: score1,
-      score2: score2,
-      sets1: sets1,
-      sets2: sets2,
+      teamZovocName: teamZovocName,
+      teamOppName: teamOppName,
+      scoreZ: scoreZ,
+      scoreOpp: scoreOpp,
+      setsZ: setsZ,
+      setsOpp: setsOpp,
+      matchType: matchType,
       isSwapped: isSwapped,
       currentSet: currentSet,
       isMatchOver: isMatchOver,
@@ -183,17 +214,20 @@
       isRunning = state.isRunning;
       timerStopped = state.timerStopped;
       finalElapsedTime = state.finalElapsedTime || 0;
-      team1Name = state.team1Name || "Zovoc";
-      team2Name = state.team2Name || "Team B";
-      score1 = state.score1 || 0;
-      score2 = state.score2 || 0;
-      sets1 = state.sets1 || 0;
-      sets2 = state.sets2 || 0;
+      teamZovocName = state.teamZovocName || "Zovoc";
+      teamOppName = state.teamOppName || "Team B";
+      scoreZ = state.scoreZ || 0;
+      scoreOpp = state.scoreOpp || 0;
+      setsZ = state.setsZ || 0;
+      setsOpp = state.setsOpp || 0;
+      matchType = state.matchType || 'home';
       isSwapped = !!state.isSwapped;
       currentSet = state.currentSet || 1;
       isMatchOver = !!state.isMatchOver;
       finishedSets = state.finishedSets || [];
       log = state.log || [];
+
+      setMatchType(matchType);
 
       if (isRunning && !timerStopped) {
         timerInterval = setInterval(updateTimerDisplay, 250);
@@ -227,16 +261,18 @@
     timerStopped = false;
     finalElapsedTime = 0;
 
-    team1Name = "Zovoc";
-    team2Name = "Team B";
-    score1 = 0; score2 = 0;
-    sets1 = 0; sets2 = 0;
+    teamZovocName = "Zovoc";
+    teamOppName = "Team B";
+    scoreZ = 0; scoreOpp = 0;
+    setsZ = 0; setsOpp = 0;
+    matchType = 'home';
     isSwapped = false;
     currentSet = 1;
     isMatchOver = false;
     finishedSets = [];
     log = [];
 
+    setMatchType('home');
     document.getElementById('timerStatusText').innerText = "Timer start automatisch bij het eerste punt";
     document.getElementById('timerStatusText').style.color = "#888";
     document.getElementById('stopBtn').style.display = "none";
@@ -305,12 +341,13 @@
 
   function getCurrentState() {
     return {
-      team1Name: team1Name,
-      team2Name: team2Name,
-      score1: score1,
-      score2: score2,
-      sets1: sets1,
-      sets2: sets2,
+      teamZovocName: teamZovocName,
+      teamOppName: teamOppName,
+      scoreZ: scoreZ,
+      scoreOpp: scoreOpp,
+      setsZ: setsZ,
+      setsOpp: setsOpp,
+      matchType: matchType,
       isSwapped: isSwapped,
       currentSet: currentSet,
       isMatchOver: isMatchOver,
@@ -318,20 +355,29 @@
     };
   }
 
-  // De SRT-tekst gebruikt ALTIJD Team 1 links en Team 2 rechts
+  // Berekent de weergave volgens de gekozen Thuis/Uit optie
   function getScoreString() {
+    var srtTeamLeft = (matchType === 'home') ? teamZovocName : teamOppName;
+    var srtTeamRight = (matchType === 'home') ? teamOppName : teamZovocName;
+
+    var srtScoreLeft = (matchType === 'home') ? scoreZ : scoreOpp;
+    var srtScoreRight = (matchType === 'home') ? scoreOpp : scoreZ;
+
+    var srtSetsLeft = (matchType === 'home') ? setsZ : setsOpp;
+    var srtSetsRight = (matchType === 'home') ? setsOpp : setsZ;
+
     var setHistoryStr = "";
     if (finishedSets.length > 0) {
       setHistoryStr = " [" + finishedSets.join(", ") + "]";
     }
     
     if (isMatchOver) {
-      return team1Name + "  " + sets1 + " - " + sets2 + "  " + team2Name + "\n" +
-             (setHistoryStr.trim() || "[" + sets1 + "-" + sets2 + "]");
+      return srtTeamLeft + "  " + srtSetsLeft + " - " + srtSetsRight + "  " + srtTeamRight + "\n" +
+             (setHistoryStr.trim() || "[" + srtSetsLeft + "-" + srtSetsRight + "]");
     }
     
-    return team1Name + "  " + score1 + " - " + score2 + "  " + team2Name + "\n" +
-           sets1 + " - " + sets2 + setHistoryStr;
+    return srtTeamLeft + "  " + srtScoreLeft + " - " + srtScoreRight + "  " + srtTeamRight + "\n" +
+           srtSetsLeft + " - " + srtSetsRight + setHistoryStr;
   }
 
   function renderLog() {
@@ -361,12 +407,13 @@
   }
 
   function updateDisplay() {
-    var nameLeft = isSwapped ? team2Name : team1Name;
-    var nameRight = isSwapped ? team1Name : team2Name;
-    var scoreLeft = isSwapped ? score2 : score1;
-    var scoreRight = isSwapped ? score1 : score2;
-    var setsLeft = isSwapped ? sets2 : sets1;
-    var setsRight = isSwapped ? sets1 : sets2;
+    // Op het scherm: isSwapped bepaalt of Zovoc links of rechts staat
+    var nameLeft = isSwapped ? teamOppName : teamZovocName;
+    var nameRight = isSwapped ? teamZovocName : teamOppName;
+    var scoreLeft = isSwapped ? scoreOpp : scoreZ;
+    var scoreRight = isSwapped ? scoreZ : scoreOpp;
+    var setsLeft = isSwapped ? setsOpp : setsZ;
+    var setsRight = isSwapped ? setsZ : setsOpp;
 
     document.getElementById('uiTeamLeft').value = nameLeft;
     document.getElementById('uiTeamRight').value = nameRight;
@@ -378,7 +425,9 @@
     var elInd = document.getElementById('setIndicator');
     if (elInd) {
       if (isMatchOver) {
-        elInd.innerText = "Wedstrijd Afgelopen (" + sets1 + "-" + sets2 + ")";
+        var sL = (matchType === 'home') ? setsZ : setsOpp;
+        var sR = (matchType === 'home') ? setsOpp : setsZ;
+        elInd.innerText = "Wedstrijd Afgelopen (" + sL + "-" + sR + ")";
         elInd.style.color = "#34c759";
       } else {
         elInd.innerText = "Set " + currentSet;
@@ -408,39 +457,42 @@
   }
 
   function handleSetEnd() {
-    finishedSets.push(score1 + "-" + score2);
-    if (score1 > score2) {
-      sets1++;
+    var finalSrtLeft = (matchType === 'home') ? scoreZ : scoreOpp;
+    var finalSrtRight = (matchType === 'home') ? scoreOpp : scoreZ;
+    finishedSets.push(finalSrtLeft + "-" + finalSrtRight);
+
+    if (scoreZ > scoreOpp) {
+      setsZ++;
     } else {
-      sets2++;
+      setsOpp++;
     }
 
     if (currentSet < 4) {
-      score1 = 0;
-      score2 = 0;
+      scoreZ = 0;
+      scoreOpp = 0;
       currentSet++;
     } else if (currentSet === 4) {
-      if (sets1 === 2 && sets2 === 2) {
-        score1 = 0;
-        score2 = 0;
+      if (setsZ === 2 && setsOpp === 2) {
+        scoreZ = 0;
+        scoreOpp = 0;
         currentSet = 5;
       } else {
         isMatchOver = true;
-        score1 = 0;
-        score2 = 0;
+        scoreZ = 0;
+        scoreOpp = 0;
       }
     } else {
       isMatchOver = true;
-      score1 = 0;
-      score2 = 0;
+      scoreZ = 0;
+      scoreOpp = 0;
     }
   }
 
   function checkSetWon() {
     var target = (currentSet === 5) ? 15 : 25;
-    var diff = Math.abs(score1 - score2);
+    var diff = Math.abs(scoreZ - scoreOpp);
 
-    if ((score1 >= target || score2 >= target) && diff >= 2) {
+    if ((scoreZ >= target || scoreOpp >= target) && diff >= 2) {
       handleSetEnd();
     }
   }
@@ -453,8 +505,8 @@
 
     startTimerIfNeeded();
 
-    var isTeam1 = (!isSwapped && side === 'left') || (isSwapped && side === 'right');
-    if (isTeam1) score1++; else score2++;
+    var isZovoc = (!isSwapped && side === 'left') || (isSwapped && side === 'right');
+    if (isZovoc) scoreZ++; else scoreOpp++;
 
     checkSetWon();
     updateDisplay();
@@ -463,20 +515,20 @@
 
   function subtractPoint(side) {
     if (isMatchOver) return;
-    var isTeam1 = (!isSwapped && side === 'left') || (isSwapped && side === 'right');
-    if (isTeam1 && score1 > 0) score1--;
-    if (!isTeam1 && score2 > 0) score2--;
+    var isZovoc = (!isSwapped && side === 'left') || (isSwapped && side === 'right');
+    if (isZovoc && scoreZ > 0) scoreZ--;
+    if (!isZovoc && scoreOpp > 0) scoreOpp--;
 
     updateDisplay();
     recordState();
   }
 
   function adjustSet(side, delta) {
-    var isTeam1 = (!isSwapped && side === 'left') || (isSwapped && side === 'right');
-    if (isTeam1) {
-      sets1 = Math.max(0, sets1 + delta);
+    var isZovoc = (!isSwapped && side === 'left') || (isSwapped && side === 'right');
+    if (isZovoc) {
+      setsZ = Math.max(0, setsZ + delta);
     } else {
-      sets2 = Math.max(0, sets2 + delta);
+      setsOpp = Math.max(0, setsOpp + delta);
     }
     updateDisplay();
     recordState();
@@ -493,17 +545,19 @@
     if (log.length > 1) {
       log.pop();
       var last = log[log.length - 1].state;
-      team1Name = last.team1Name;
-      team2Name = last.team2Name;
-      score1 = last.score1;
-      score2 = last.score2;
-      sets1 = last.sets1;
-      sets2 = last.sets2;
+      teamZovocName = last.teamZovocName;
+      teamOppName = last.teamOppName;
+      scoreZ = last.scoreZ;
+      scoreOpp = last.scoreOpp;
+      setsZ = last.setsZ;
+      setsOpp = last.setsOpp;
+      matchType = last.matchType || 'home';
       isSwapped = last.isSwapped;
       currentSet = last.currentSet;
       isMatchOver = last.isMatchOver;
       finishedSets = [...last.finishedSets];
 
+      setMatchType(matchType);
       updateDisplay();
       renderLog();
       saveToStorage();

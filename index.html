@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 1.7 -->
+<!-- Live Volleybal Scorer - Versie 1.9 -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v1.7</title>
+  <title>Live Volleybal Scorer v1.9</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -41,7 +41,7 @@
     .btn-red { background: #ff3b30; color: white; }
     .btn-gray { background: #444; color: white; }
     
-    .log-box { background: #0a0a0a; border: 1px solid #333; border-radius: 8px; padding: 10px; max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 13px; color: #00ff66; margin-top: 10px; }
+    .log-box { background: #0a0a0a; border: 1px solid #333; border-radius: 8px; padding: 10px; max-height: 130px; overflow-y: auto; font-family: monospace; font-size: 13px; color: #00ff66; margin-top: 10px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -49,7 +49,7 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v1.7</span>
+    <span class="version-tag">v1.9</span>
   </div>
 
   <div class="timer-box">
@@ -104,7 +104,7 @@
 </div>
 
 <script>
-  var APP_VERSION = "1.7";
+  var APP_VERSION = "1.9";
 
   var startTime = null;
   var timerInterval = null;
@@ -188,10 +188,12 @@
     }
     
     if (isMatchOver) {
-      return "Eindstand (" + setsA + "-" + setsB + ") | " + tA + " - " + tB + setHistoryStr;
+      return tA + "  " + setsA + " - " + setsB + "  " + tB + "\n" +
+             (setHistoryStr.trim() || "[" + setsA + "-" + setsB + "]");
     }
     
-    return "Set " + currentSet + " (" + setsA + "-" + setsB + ") | " + tA + " " + scoreA + " - " + scoreB + " " + tB + setHistoryStr;
+    return tA + "  " + scoreA + " - " + scoreB + "  " + tB + "\n" +
+           setsA + " - " + setsB + setHistoryStr;
   }
 
   function renderLog() {
@@ -205,8 +207,9 @@
       var min = Math.floor(item.time / 60);
       var sec = Math.floor(item.time % 60);
       var tStr = String(min).padStart(2,'0') + ":" + String(sec).padStart(2,'0');
-      return "[" + tStr + "] #" + (idx + 1) + ": " + item.text;
-    }).reverse().join("<br>");
+      var lines = item.text.split("\n");
+      return "<b>[" + tStr + "] #" + (idx + 1) + ":</b> " + lines[0] + "<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↳ " + (lines[1] || "");
+    }).reverse().join("<br><br>");
   }
 
   function recordState() {
@@ -264,10 +267,6 @@
       setsB++;
     }
 
-    // Regels:
-    // Sets 1 t/m 3 gaan altijd door naar de volgende set.
-    // Na Set 4: als het 2-2 is, volgt Set 5. Is het 4-0 of 3-1, dan stopt het direct.
-    // Na Set 5: stopt het altijd.
     if (currentSet < 4) {
       scoreA = 0;
       scoreB = 0;
@@ -276,14 +275,13 @@
       if (setsA === 2 && setsB === 2) {
         scoreA = 0;
         scoreB = 0;
-        currentSet = 5; // Beslissende 5e set tot 15
+        currentSet = 5;
       } else {
         isMatchOver = true;
         scoreA = 0;
         scoreB = 0;
       }
     } else {
-      // Set 5 is voltooid
       isMatchOver = true;
       scoreA = 0;
       scoreB = 0;

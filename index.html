@@ -9,20 +9,30 @@
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; -webkit-user-select: none; user-select: none; }
     .container { width: 100%; max-width: 600px; }
-    .timer-box { text-align: center; background: #222; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
-    .timer { font-size: 40px; font-weight: bold; font-family: monospace; color: #34c759; margin: 5px 0; }
-    .scoreboard { display: flex; gap: 10px; justify-content: space-between; margin-bottom: 15px; }
-    .team-card { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 15px; text-align: center; }
-    .team-card input { width: 90%; background: transparent; border: none; border-bottom: 2px solid #555; color: #fff; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 5px; }
-    .sets { font-size: 14px; color: #888; margin-bottom: 10px; }
-    .score { font-size: 64px; font-weight: bold; margin: 10px 0; font-variant-numeric: tabular-nums; }
-    .btn-score { width: 100%; height: 75px; font-size: 26px; font-weight: bold; border-radius: 10px; border: none; background: #007aff; color: white; cursor: pointer; }
-    .btn-score:active { background: #0056b3; }
-    .center-controls { text-align: center; margin: 15px 0; display: flex; justify-content: center; gap: 10px; }
-    .btn { padding: 10px 20px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
+    .timer-box { text-align: center; background: #222; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
+    .timer { font-size: 42px; font-weight: bold; font-family: monospace; color: #34c759; margin: 5px 0; }
+    
+    .scoreboard { display: flex; gap: 12px; justify-content: space-between; margin-bottom: 40px; }
+    .team-card { flex: 1; background: #1e1e1e; border: 1px solid #333; border-radius: 14px; padding: 15px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
+    .team-card input { width: 90%; background: transparent; border: none; border-bottom: 2px solid #555; color: #fff; font-size: 18px; font-weight: bold; text-align: center; padding: 4px; }
+    .sets { font-size: 14px; color: #888; }
+    .score { font-size: 70px; font-weight: bold; margin: 5px 0; font-variant-numeric: tabular-nums; line-height: 1; }
+    
+    /* Grote +1 knop */
+    .btn-score-plus { width: 100%; height: 85px; font-size: 32px; font-weight: bold; border-radius: 12px; border: none; background: #007aff; color: white; cursor: pointer; }
+    .btn-score-plus:active { background: #0056b3; }
+    
+    /* Kleinere -1 knop per team */
+    .btn-score-minus { width: 100%; height: 42px; font-size: 18px; font-weight: bold; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: #bbb; cursor: pointer; }
+    .btn-score-minus:active { background: #3a3a3a; color: #fff; }
+
+    /* Extra tussenruimte voor setbeheer */
+    .center-controls { text-align: center; margin: 30px 0 20px 0; display: flex; justify-content: center; gap: 15px; padding-top: 10px; border-top: 1px solid #222; }
+    .btn { padding: 12px 22px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
     .btn-green { background: #34c759; color: white; }
     .btn-red { background: #ff3b30; color: white; }
     .btn-gray { background: #444; color: white; }
+    
     .log-box { background: #0a0a0a; border: 1px solid #333; border-radius: 8px; padding: 10px; max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 13px; color: #00ff66; margin-top: 10px; }
   </style>
 </head>
@@ -39,24 +49,28 @@
   </div>
 
   <div class="scoreboard">
+    <!-- Team A -->
     <div class="team-card">
       <input type="text" id="teamAName" value="Team A">
       <div class="sets" id="teamASets">Sets: 0</div>
       <div class="score" id="scoreA">0</div>
-      <button class="btn-score" onclick="addPoint('A')">+1 Punt</button>
+      <button class="btn-score-plus" onclick="addPoint('A')">+1</button>
+      <button class="btn-score-minus" onclick="subtractPoint('A')">-1</button>
     </div>
 
+    <!-- Team B -->
     <div class="team-card">
       <input type="text" id="teamBName" value="Team B">
       <div class="sets" id="teamBSets">Sets: 0</div>
       <div class="score" id="scoreB">0</div>
-      <button class="btn-score" onclick="addPoint('B')">+1 Punt</button>
+      <button class="btn-score-plus" onclick="addPoint('B')">+1</button>
+      <button class="btn-score-minus" onclick="subtractPoint('B')">-1</button>
     </div>
   </div>
 
   <div class="center-controls">
     <button class="btn btn-red" onclick="endSet()">Einde Set</button>
-    <button class="btn btn-gray" onclick="undo()">Herstel</button>
+    <button class="btn btn-gray" onclick="undo()">Herstel Laatste Actie</button>
   </div>
 
   <div class="log-box" id="logBox">Tik op "Start Timer" zodra de camera begint te filmen...</div>
@@ -151,6 +165,14 @@
     recordState();
   }
 
+  function subtractPoint(team) {
+    if (!isRunning) return;
+    if (team === 'A' && scoreA > 0) scoreA--;
+    if (team === 'B' && scoreB > 0) scoreB--;
+    updateDisplay();
+    recordState();
+  }
+
   function endSet() {
     if (!isRunning) return;
     if (scoreA > scoreB) setsA++;
@@ -183,42 +205,10 @@
     return `${hours}:${mins}:${secs},${ms}`;
   }
 
-function downloadSRT() {
+  function downloadSRT() {
     if (log.length === 0) return;
     let srt = "";
     const totalDuration = getElapsedTime() + 10;
 
     for (let i = 0; i < log.length; i++) {
-      const startTime = log[i].time;
-      const endTime = (i < log.length - 1) ? log[i + 1].time : totalDuration;
-      
-      if (endTime > startTime) {
-        srt += `${i + 1}\n`;
-        srt += `${formatSRTTime(startTime)} --> ${formatSRTTime(endTime)}\n`;
-        srt += `${log[i].text}\n\n`;
-      }
-    }
-
-    // Datum en tijd formatteren (bijv: 8_oktober_2026_15-26)
-    const now = new Date();
-    const maanden = [
-      "januari", "februari", "maart", "april", "mei", "juni",
-      "juli", "augustus", "september", "oktober", "november", "december"
-    ];
-    const dag = now.getDate();
-    const maand = maanden[now.getMonth()];
-    const jaar = now.getFullYear();
-    const uren = String(now.getHours()).padStart(2, '0');
-    const minuten = String(now.getMinutes()).padStart(2, '0');
-
-    const fileName = `wedstrijd_score_${dag}_${maand}_${jaar}_${uren}-${minuten}.srt`;
-
-    const blob = new Blob([srt], { type: 'text/srt;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    link.click();
-  }
-</script>
-</body>
-</html>
+      const startTime = log[i].

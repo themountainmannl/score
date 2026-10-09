@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 3.2 (Permanente Setuitslagen in SRT) -->
+<!-- Live Volleybal Scorer - Versie 3.3 (3-regelige SRT Layout) -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v3.2</title>
+  <title>Live Volleybal Scorer v3.3</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -66,7 +66,7 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v3.2</span>
+    <span class="version-tag">v3.3</span>
   </div>
 
   <div class="match-top-bar">
@@ -130,8 +130,8 @@
 </div>
 
 <script>
-  var APP_VERSION = "3.2";
-  var STORAGE_KEY = "live_volley_scorer_state_v3_2";
+  var APP_VERSION = "3.3";
+  var STORAGE_KEY = "live_volley_scorer_state_v3_3";
 
   var startTime = null;
   var timerInterval = null;
@@ -428,7 +428,7 @@
 
     var setHistoryStr = "";
     if (finishedSets.length > 0) {
-      setHistoryStr = " [" + finishedSets.join(", ") + "]";
+      setHistoryStr = "\n[" + finishedSets.join(", ") + "]";
     }
     
     return srtTeamLeft + "  " + srtScoreLeft + " - " + srtScoreRight + "  " + srtTeamRight + "\n" +
@@ -447,19 +447,20 @@
 
     var setHistoryStr = "";
     if (finishedSets.length > 0) {
-      setHistoryStr = " [" + finishedSets.join(", ") + "]";
+      setHistoryStr = "\n[" + finishedSets.join(", ") + "]";
     }
     
     if (isMatchOver) {
       return srtTeamLeft + "  " + srtSetsLeft + " - " + srtSetsRight + "  " + srtTeamRight + "\n" +
-             (setHistoryStr.trim() || "[" + srtSetsLeft + "-" + srtSetsRight + "]");
+             srtSetsLeft + " - " + srtSetsRight +
+             (setHistoryStr || "\n[" + srtSetsLeft + "-" + srtSetsRight + "]");
     }
     
     return srtTeamLeft + "  " + srtScoreLeft + " - " + srtScoreRight + "  " + srtTeamRight + "\n" +
            srtSetsLeft + " - " + srtSetsRight + setHistoryStr;
   }
 
-  // Genereert SRT-tekst waarbij alle voltooide setuitslagen permanent meegenomen worden
+  // 3-regelige export: Regel 1 = Punten, Regel 2 = Setstand, Regel 3 = Setuitslagen
   function getSRTScoreString(entryState, finalHistoryStr) {
     var mType = entryState.matchType || 'home';
     var srtTeamLeft = (mType === 'home') ? entryState.teamZovocName : entryState.teamOppName;
@@ -471,13 +472,15 @@
     var srtSetsLeft = (mType === 'home') ? entryState.setsZ : entryState.setsOpp;
     var srtSetsRight = (mType === 'home') ? entryState.setsOpp : entryState.setsZ;
 
-    if (entryState.isMatchOver) {
-      return srtTeamLeft + "  " + srtSetsLeft + " - " + srtSetsRight + "  " + srtTeamRight + "\n" +
-             (finalHistoryStr.trim() || "[" + srtSetsLeft + "-" + srtSetsRight + "]");
-    }
+    var line1 = entryState.isMatchOver 
+      ? srtTeamLeft + "  " + srtSetsLeft + " - " + srtSetsRight + "  " + srtTeamRight
+      : srtTeamLeft + "  " + srtScoreLeft + " - " + srtScoreRight + "  " + srtTeamRight;
+    var line2 = srtSetsLeft + " - " + srtSetsRight;
 
-    return srtTeamLeft + "  " + srtScoreLeft + " - " + srtScoreRight + "  " + srtTeamRight + "\n" +
-           srtSetsLeft + " - " + srtSetsRight + finalHistoryStr;
+    if (finalHistoryStr.trim().length > 0) {
+      return line1 + "\n" + line2 + "\n" + finalHistoryStr.trim();
+    }
+    return line1 + "\n" + line2;
   }
 
   function renderLog() {
@@ -492,7 +495,8 @@
       var sec = Math.floor(item.time % 60);
       var tStr = String(min).padStart(2,'0') + ":" + String(sec).padStart(2,'0');
       var lines = item.text.split("\n");
-      return "<b>[" + tStr + "] #" + (idx + 1) + ":</b> " + lines[0] + "<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↳ " + (lines[1] || "");
+      var subText = lines.slice(1).join("  |  ");
+      return "<b>[" + tStr + "] #" + (idx + 1) + ":</b> " + lines[0] + "<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↳ " + (subText || "");
     }).reverse().join("<br><br>");
   }
 
@@ -514,7 +518,7 @@
     var scoreLeft = isSwapped ? scoreOpp : scoreZ;
     var scoreRight = isSwapped ? scoreZ : scoreOpp;
     var setsLeft = isSwapped ? setsOpp : setsZ;
-    var setsRight = isSwapped ? setsZ : setsOpp;
+    var setsRight = isSwapped ? setsOpp : setsZ;
 
     document.getElementById('uiTeamLeft').value = nameLeft;
     document.getElementById('uiTeamRight').value = nameRight;
@@ -694,10 +698,9 @@
     var srt = "";
     var totalDuration = getElapsedTime() + 10;
 
-    // Vaste setuitslagen voor de gehele SRT
     var finalHistoryStr = "";
     if (finishedSets.length > 0) {
-      finalHistoryStr = " [" + finishedSets.join(", ") + "]";
+      finalHistoryStr = "[" + finishedSets.join(", ") + "]";
     }
 
     for (var i = 0; i < log.length; i++) {

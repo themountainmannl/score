@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 2.9 (Dynamische Setberekening) -->
+<!-- Live Volleybal Scorer - Versie 3.0 -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v2.9</title>
+  <title>Live Volleybal Scorer v3.0</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -47,9 +47,10 @@
     .btn-set { flex: 1; height: 34px; font-size: 12px; font-weight: bold; border-radius: 6px; border: 1px solid #3d3d3d; background: #1a1a1a; color: #aaa; cursor: pointer; }
     .btn-set:active { background: #333; color: #fff; }
 
+    /* Afgeronde sets: gecentreerd, timer-groen en met ruimte */
     .set-results-box { background: #181818; border: 1px dashed #3a3a3a; border-radius: 8px; padding: 10px 15px; margin-bottom: 15px; text-align: center; }
     .set-results-title { font-size: 11px; text-transform: uppercase; color: #777; letter-spacing: 1px; margin-bottom: 4px; }
-    .set-results-list { font-size: 15px; font-family: monospace; color: #ffcc00; font-weight: bold; }
+    .set-results-list { font-size: 17px; font-family: monospace; color: #34c759; font-weight: bold; letter-spacing: 0.5px; white-space: pre-wrap; }
 
     .center-controls { text-align: center; margin: 15px 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding-top: 15px; border-top: 1px solid #2a2a2a; }
     .btn { padding: 12px 18px; font-size: 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
@@ -65,7 +66,7 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v2.9</span>
+    <span class="version-tag">v3.0</span>
   </div>
 
   <div class="match-type-box">
@@ -77,13 +78,12 @@
     <div class="timer-hint" id="timerStatusText">Timer start automatisch bij het eerste punt (vanaf 00:30)</div>
     <div class="timer" id="timerDisplay">00:00:00</div>
     <div>
-      <button class="btn btn-red" id="stopBtn" onclick="stopTimerManual()" style="display: none;">⏹ Stop Timer</button>
       <button class="btn btn-gray" onclick="downloadSRT()">⬇ Download SRT</button>
     </div>
   </div>
 
   <div class="swap-bar">
-    <button class="btn-swap" onclick="swapSides()">⇄ Wissel Speelhelft (Visueel)</button>
+    <button class="btn-swap" onclick="swapSides()">⇄ Wissel Speelhelft</button>
   </div>
 
   <div class="scoreboard">
@@ -129,8 +129,8 @@
 </div>
 
 <script>
-  var APP_VERSION = "2.9";
-  var STORAGE_KEY = "live_volley_scorer_state_v2_9";
+  var APP_VERSION = "3.0";
+  var STORAGE_KEY = "live_volley_scorer_state_v3_0";
 
   var startTime = null;
   var timerInterval = null;
@@ -241,9 +241,8 @@
       if (isRunning && !timerStopped) {
         timerInterval = setInterval(updateTimerDisplay, 250);
         document.getElementById('timerStatusText').innerText = "Wedstrijdtijd loopt (DJI Sync)";
-        document.getElementById('stopBtn').style.display = "inline-block";
       } else if (timerStopped) {
-        document.getElementById('timerStatusText').innerText = isMatchOver ? "Wedstrijd afgelopen - Timer automatisch gestopt" : "Timer definitief gestopt";
+        document.getElementById('timerStatusText').innerText = isMatchOver ? "Wedstrijd afgelopen - Timer automatisch gestopt" : "Timer gestopt";
         document.getElementById('timerStatusText').style.color = isMatchOver ? "#34c759" : "#ff3b30";
       }
 
@@ -283,7 +282,6 @@
     setMatchType('home');
     document.getElementById('timerStatusText').innerText = "Timer start automatisch bij het eerste punt (vanaf 00:30)";
     document.getElementById('timerStatusText').style.color = "#888";
-    document.getElementById('stopBtn').style.display = "none";
 
     updateDisplay();
     updateTimerDisplay();
@@ -307,9 +305,6 @@
         statusEl.innerText = "Wedstrijdtijd loopt (DJI Sync)";
         statusEl.style.color = "#888";
       }
-      
-      var stopBtn = document.getElementById('stopBtn');
-      if (stopBtn) stopBtn.style.display = "inline-block";
 
       if (log.length === 0) {
         log.push({ 
@@ -346,28 +341,6 @@
       statusEl.innerText = "Wedstrijd afgelopen - Timer automatisch gestopt";
       statusEl.style.color = "#34c759";
     }
-
-    var stopBtn = document.getElementById('stopBtn');
-    if (stopBtn) stopBtn.style.display = "none";
-
-    saveToStorage();
-  }
-
-  function stopTimerManual() {
-    if (timerStopped) return;
-    finalElapsedTime = getElapsedTime();
-    clearInterval(timerInterval);
-    isRunning = false;
-    timerStopped = true;
-
-    var statusEl = document.getElementById('timerStatusText');
-    if (statusEl) {
-      statusEl.innerText = "Timer definitief gestopt";
-      statusEl.style.color = "#ff3b30";
-    }
-
-    var stopBtn = document.getElementById('stopBtn');
-    if (stopBtn) stopBtn.style.display = "none";
 
     saveToStorage();
   }
@@ -513,11 +486,9 @@
         elResults.innerText = "Nog geen sets voltooid";
         elResults.style.color = "#777";
       } else {
-        var formatted = finishedSets.map(function(s, idx) {
-          return "S" + (idx + 1) + ": " + s;
-        }).join("  |  ");
-        elResults.innerText = formatted;
-        elResults.style.color = "#ffcc00";
+        // Enkel de setuitslagen met 3 spaties ertussen
+        elResults.innerText = finishedSets.join("   ");
+        elResults.style.color = "#34c759";
       }
     }
   }
@@ -633,8 +604,6 @@
           statusEl.innerText = "Wedstrijdtijd loopt (DJI Sync)";
           statusEl.style.color = "#888";
         }
-        var stopBtn = document.getElementById('stopBtn');
-        if (stopBtn) stopBtn.style.display = "inline-block";
       }
 
       setMatchType(matchType);

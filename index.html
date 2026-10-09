@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 2.8 (Automatische Timer Stop & Resume bij Undo) -->
+<!-- Live Volleybal Scorer - Versie 2.9 (Dynamische Setberekening) -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v2.8</title>
+  <title>Live Volleybal Scorer v2.9</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -65,7 +65,7 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v2.8</span>
+    <span class="version-tag">v2.9</span>
   </div>
 
   <div class="match-type-box">
@@ -129,8 +129,8 @@
 </div>
 
 <script>
-  var APP_VERSION = "2.8";
-  var STORAGE_KEY = "live_volley_scorer_state_v2_8";
+  var APP_VERSION = "2.9";
+  var STORAGE_KEY = "live_volley_scorer_state_v2_9";
 
   var startTime = null;
   var timerInterval = null;
@@ -146,10 +146,28 @@
   var matchType = 'home';
   var isSwapped = false;
 
-  var currentSet = 1;
   var isMatchOver = false;
   var finishedSets = [];
   var log = [];
+
+  function recalculateMatchState() {
+    var totalSets = setsZ + setsOpp;
+    if (totalSets === 4) {
+      if (setsZ === 2 && setsOpp === 2) {
+        isMatchOver = false;
+      } else {
+        isMatchOver = true;
+      }
+    } else if (totalSets >= 5) {
+      isMatchOver = true;
+    } else {
+      isMatchOver = false;
+    }
+  }
+
+  function getCurrentSetNumber() {
+    return (setsZ + setsOpp) + 1;
+  }
 
   function setMatchType(type) {
     matchType = type;
@@ -185,7 +203,6 @@
       setsOpp: setsOpp,
       matchType: matchType,
       isSwapped: isSwapped,
-      currentSet: currentSet,
       isMatchOver: isMatchOver,
       finishedSets: finishedSets,
       log: log
@@ -215,11 +232,10 @@
       setsOpp = state.setsOpp || 0;
       matchType = state.matchType || 'home';
       isSwapped = !!state.isSwapped;
-      currentSet = state.currentSet || 1;
-      isMatchOver = !!state.isMatchOver;
       finishedSets = state.finishedSets || [];
       log = state.log || [];
 
+      recalculateMatchState();
       setMatchType(matchType);
 
       if (isRunning && !timerStopped) {
@@ -260,7 +276,6 @@
     setsZ = 0; setsOpp = 0;
     matchType = 'home';
     isSwapped = false;
-    currentSet = 1;
     isMatchOver = false;
     finishedSets = [];
     log = [];
@@ -309,7 +324,6 @@
             setsOpp: 0,
             matchType: matchType,
             isSwapped: isSwapped,
-            currentSet: 1,
             isMatchOver: false,
             finishedSets: [],
             elapsed: 0
@@ -377,7 +391,6 @@
       setsOpp: setsOpp,
       matchType: matchType,
       isSwapped: isSwapped,
-      currentSet: currentSet,
       isMatchOver: isMatchOver,
       finishedSets: [...finishedSets],
       elapsed: getElapsedTime()
@@ -454,6 +467,8 @@
   }
 
   function updateDisplay() {
+    recalculateMatchState();
+
     var nameLeft = isSwapped ? teamOppName : teamZovocName;
     var nameRight = isSwapped ? teamZovocName : teamOppName;
     var scoreLeft = isSwapped ? scoreOpp : scoreZ;
@@ -487,7 +502,7 @@
         elInd.innerText = "Wedstrijd Afgelopen (" + sL + "-" + sR + ")";
         elInd.style.color = "#34c759";
       } else {
-        elInd.innerText = "Set " + currentSet;
+        elInd.innerText = "Set " + getCurrentSetNumber();
         elInd.style.color = "#888";
       }
     }
@@ -524,31 +539,17 @@
       setsOpp++;
     }
 
-    if (currentSet < 4) {
-      scoreZ = 0;
-      scoreOpp = 0;
-      currentSet++;
-    } else if (currentSet === 4) {
-      if (setsZ === 2 && setsOpp === 2) {
-        scoreZ = 0;
-        scoreOpp = 0;
-        currentSet = 5;
-      } else {
-        isMatchOver = true;
-        scoreZ = 0;
-        scoreOpp = 0;
-        autoStopTimerOnMatchEnd();
-      }
-    } else {
-      isMatchOver = true;
-      scoreZ = 0;
-      scoreOpp = 0;
+    scoreZ = 0;
+    scoreOpp = 0;
+
+    recalculateMatchState();
+    if (isMatchOver) {
       autoStopTimerOnMatchEnd();
     }
   }
 
   function checkSetWon() {
-    var target = (currentSet === 5) ? 15 : 25;
+    var target = (getCurrentSetNumber() === 5) ? 15 : 25;
     var diff = Math.abs(scoreZ - scoreOpp);
 
     if ((scoreZ >= target || scoreOpp >= target) && diff >= 2) {
@@ -589,6 +590,7 @@
     } else {
       setsOpp = Math.max(0, setsOpp + delta);
     }
+    recalculateMatchState();
     updateDisplay();
     recordState();
   }
@@ -614,15 +616,13 @@
       setsOpp = last.setsOpp;
       matchType = last.matchType || 'home';
       isSwapped = last.isSwapped;
-      currentSet = last.currentSet;
-      isMatchOver = last.isMatchOver;
       finishedSets = [...last.finishedSets];
 
-      // Als de wedstrijd beëindigd was, heropenen we de actieve timer op de herstelde tijd
+      recalculateMatchState();
+
       if (wasMatchOver && !isMatchOver) {
         timerStopped = false;
         var restoreElapsed = (last.elapsed !== undefined) ? last.elapsed : log[log.length - 1].time;
-        // Herbereken startTime zodat getElapsedTime() naadloos verder telt
         startTime = Date.now() - ((restoreElapsed - 30) * 1000);
         isRunning = true;
         clearInterval(timerInterval);

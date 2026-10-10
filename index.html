@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 3.4 (Handmatige Start Wedstrijd & Vangnet) -->
+<!-- Live Volleybal Scorer - Versie 3.5 (Automatische Speelhelftwissel bij Seteinde) -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v3.4</title>
+  <title>Live Volleybal Scorer v3.5</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -68,7 +68,7 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v3.4</span>
+    <span class="version-tag">v3.5</span>
   </div>
 
   <div class="match-top-bar">
@@ -133,15 +133,15 @@
 </div>
 
 <script>
-  var APP_VERSION = "3.4";
-  var STORAGE_KEY = "live_volley_scorer_state_v3_4";
+  var APP_VERSION = "3.5";
+  var STORAGE_KEY = "live_volley_scorer_state_v3_5";
 
   var startTime = null;
   var timerInterval = null;
   var isRunning = false;
   var timerStopped = false;
   var finalElapsedTime = 0;
-  var timerBaseOffset = 0; // 0 bij handmatige start op fluitsignaal, 30 bij auto-start op 1e punt
+  var timerBaseOffset = 0;
 
   var teamZovocName = "Zovoc";
   var teamOppName = "Team B";
@@ -353,7 +353,6 @@
     return timerBaseOffset + ((Date.now() - startTime) / 1000);
   }
 
-  // Handmatige start bij het 1e fluitsignaal (start vanaf 00:00:00)
   function startOnWhistle() {
     if (isRunning || timerStopped) return;
     
@@ -371,7 +370,6 @@
       statusEl.style.color = "#888";
     }
 
-    // Direct regel 1 (0-0) op t = 0 vastleggen
     log.push({ 
       time: 0, 
       text: getScoreStringForValues(0, 0, 0, 0), 
@@ -395,10 +393,9 @@
     saveToStorage();
   }
 
-  // Automatische vangnet-start als de gebruiker direct op +1 drukt zonder te starten
   function autoStartOnFirstPoint() {
     if (!isRunning && !timerStopped) {
-      timerBaseOffset = 30; // telt vanaf 30 seconden
+      timerBaseOffset = 30;
       startTime = Date.now();
       timerInterval = setInterval(updateTimerDisplay, 250);
       isRunning = true;
@@ -412,7 +409,6 @@
         statusEl.style.color = "#888";
       }
 
-      // Vangnet: 0-0 regel op t = 0 zetten
       if (log.length === 0) {
         log.push({ 
           time: 0, 
@@ -646,8 +642,12 @@
     scoreOpp = 0;
 
     recalculateMatchState();
+
+    // Automatisch speelhelft wisselen, behalve als de wedstrijd nu klaar is
     if (isMatchOver) {
       autoStopTimerOnMatchEnd();
+    } else {
+      isSwapped = !isSwapped;
     }
   }
 
@@ -666,7 +666,6 @@
       return;
     }
 
-    // Als de timer nog niet handmatig is gestart, start dan de vangnetmodus
     if (!isRunning && !timerStopped) {
       autoStartOnFirstPoint();
     }

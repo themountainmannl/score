@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Live Volleybal Scorer - Versie 3.3 (3-regelige SRT Layout) -->
+<!-- Live Volleybal Scorer - Versie 3.4 (Handmatige Start Wedstrijd & Vangnet) -->
 <html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live Volleybal Scorer v3.3</title>
+  <title>Live Volleybal Scorer v3.4</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; user-select: none; }
@@ -54,6 +54,8 @@
 
     .center-controls { text-align: center; margin: 15px 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding-top: 15px; border-top: 1px solid #2a2a2a; }
     .btn { padding: 12px 18px; font-size: 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
+    .btn-green { background: #34c759; color: white; }
+    .btn-green:active { background: #28a745; }
     .btn-red { background: #ff3b30; color: white; }
     .btn-gray { background: #333; color: white; border: 1px solid #444; }
     .btn-reset { background: #222; color: #ff453a; border: 1px solid #552222; }
@@ -66,7 +68,7 @@
 <div class="container">
   <div class="header-bar">
     <span style="font-size: 12px; color: #888; font-weight: bold;" id="setIndicator">Set 1</span>
-    <span class="version-tag">v3.3</span>
+    <span class="version-tag">v3.4</span>
   </div>
 
   <div class="match-top-bar">
@@ -76,9 +78,10 @@
   </div>
 
   <div class="timer-box">
-    <div class="timer-hint" id="timerStatusText">Timer start automatisch bij het eerste punt (vanaf 00:30)</div>
+    <div class="timer-hint" id="timerStatusText">Start bij 1e fluitsignaal of automatisch bij 1e punt</div>
     <div class="timer" id="timerDisplay">00:00:00</div>
-    <div>
+    <div style="display: flex; justify-content: center; gap: 8px;">
+      <button class="btn btn-green" id="btnStartWhistle" onclick="startOnWhistle()">▶ Start wedstrijd</button>
       <button class="btn btn-gray" onclick="downloadSRT()">⬇ Download SRT</button>
     </div>
   </div>
@@ -126,18 +129,19 @@
     <button class="btn btn-reset" onclick="resetForm()">↺ Reset Formulier</button>
   </div>
 
-  <div class="log-box" id="logBox">Klaar voor de start. Geef het eerste punt om te beginnen...</div>
+  <div class="log-box" id="logBox">Klaar voor de start. Start bij het fluitsignaal of geef direct het eerste punt...</div>
 </div>
 
 <script>
-  var APP_VERSION = "3.3";
-  var STORAGE_KEY = "live_volley_scorer_state_v3_3";
+  var APP_VERSION = "3.4";
+  var STORAGE_KEY = "live_volley_scorer_state_v3_4";
 
   var startTime = null;
   var timerInterval = null;
   var isRunning = false;
   var timerStopped = false;
   var finalElapsedTime = 0;
+  var timerBaseOffset = 0; // 0 bij handmatige start op fluitsignaal, 30 bij auto-start op 1e punt
 
   var teamZovocName = "Zovoc";
   var teamOppName = "Team B";
@@ -234,6 +238,7 @@
       isRunning: isRunning,
       timerStopped: timerStopped,
       finalElapsedTime: finalElapsedTime,
+      timerBaseOffset: timerBaseOffset,
       teamZovocName: teamZovocName,
       teamOppName: teamOppName,
       scoreZ: scoreZ,
@@ -264,6 +269,7 @@
       isRunning = state.isRunning;
       timerStopped = state.timerStopped;
       finalElapsedTime = state.finalElapsedTime || 0;
+      timerBaseOffset = (state.timerBaseOffset !== undefined) ? state.timerBaseOffset : 0;
       teamZovocName = state.teamZovocName || "Zovoc";
       teamOppName = state.teamOppName || "Team B";
       scoreZ = state.scoreZ || 0;
@@ -279,6 +285,11 @@
       recalculateMatchState();
       setMatchType(matchType);
       updateCupButtonUI();
+
+      var btnStart = document.getElementById('btnStartWhistle');
+      if (isRunning || timerStopped) {
+        if (btnStart) btnStart.style.display = "none";
+      }
 
       if (isRunning && !timerStopped) {
         timerInterval = setInterval(updateTimerDisplay, 250);
@@ -310,6 +321,7 @@
     isRunning = false;
     timerStopped = false;
     finalElapsedTime = 0;
+    timerBaseOffset = 0;
 
     teamZovocName = "Zovoc";
     teamOppName = "Team B";
@@ -324,32 +336,83 @@
 
     setMatchType('home');
     updateCupButtonUI();
-    document.getElementById('timerStatusText').innerText = "Timer start automatisch bij het eerste punt (vanaf 00:30)";
+    document.getElementById('timerStatusText').innerText = "Start bij 1e fluitsignaal of automatisch bij 1e punt";
     document.getElementById('timerStatusText').style.color = "#888";
+
+    var btnStart = document.getElementById('btnStartWhistle');
+    if (btnStart) btnStart.style.display = "inline-block";
 
     updateDisplay();
     updateTimerDisplay();
-    document.getElementById('logBox').innerHTML = "Klaar voor de start. Geef het eerste punt om te beginnen...";
+    document.getElementById('logBox').innerHTML = "Klaar voor de start. Start bij het fluitsignaal of geef direct het eerste punt...";
   }
 
   function getElapsedTime() {
     if (timerStopped) return finalElapsedTime;
     if (!startTime) return 0;
-    return 30 + ((Date.now() - startTime) / 1000);
+    return timerBaseOffset + ((Date.now() - startTime) / 1000);
   }
 
-  function startTimerIfNeeded() {
+  // Handmatige start bij het 1e fluitsignaal (start vanaf 00:00:00)
+  function startOnWhistle() {
+    if (isRunning || timerStopped) return;
+    
+    timerBaseOffset = 0;
+    startTime = Date.now();
+    timerInterval = setInterval(updateTimerDisplay, 250);
+    isRunning = true;
+
+    var btnStart = document.getElementById('btnStartWhistle');
+    if (btnStart) btnStart.style.display = "none";
+
+    var statusEl = document.getElementById('timerStatusText');
+    if (statusEl) {
+      statusEl.innerText = "Wedstrijdtijd loopt (DJI Sync)";
+      statusEl.style.color = "#888";
+    }
+
+    // Direct regel 1 (0-0) op t = 0 vastleggen
+    log.push({ 
+      time: 0, 
+      text: getScoreStringForValues(0, 0, 0, 0), 
+      state: {
+        teamZovocName: teamZovocName,
+        teamOppName: teamOppName,
+        scoreZ: 0,
+        scoreOpp: 0,
+        setsZ: 0,
+        setsOpp: 0,
+        matchType: matchType,
+        isCupMatch: isCupMatch,
+        isSwapped: isSwapped,
+        isMatchOver: false,
+        finishedSets: [],
+        elapsed: 0
+      }
+    });
+
+    renderLog();
+    saveToStorage();
+  }
+
+  // Automatische vangnet-start als de gebruiker direct op +1 drukt zonder te starten
+  function autoStartOnFirstPoint() {
     if (!isRunning && !timerStopped) {
+      timerBaseOffset = 30; // telt vanaf 30 seconden
       startTime = Date.now();
       timerInterval = setInterval(updateTimerDisplay, 250);
       isRunning = true;
       
+      var btnStart = document.getElementById('btnStartWhistle');
+      if (btnStart) btnStart.style.display = "none";
+
       var statusEl = document.getElementById('timerStatusText');
       if (statusEl) {
         statusEl.innerText = "Wedstrijdtijd loopt (DJI Sync)";
         statusEl.style.color = "#888";
       }
 
+      // Vangnet: 0-0 regel op t = 0 zetten
       if (log.length === 0) {
         log.push({ 
           time: 0, 
@@ -460,7 +523,6 @@
            srtSetsLeft + " - " + srtSetsRight + setHistoryStr;
   }
 
-  // 3-regelige export: Regel 1 = Punten, Regel 2 = Setstand, Regel 3 = Setuitslagen
   function getSRTScoreString(entryState, finalHistoryStr) {
     var mType = entryState.matchType || 'home';
     var srtTeamLeft = (mType === 'home') ? entryState.teamZovocName : entryState.teamOppName;
@@ -518,7 +580,7 @@
     var scoreLeft = isSwapped ? scoreOpp : scoreZ;
     var scoreRight = isSwapped ? scoreZ : scoreOpp;
     var setsLeft = isSwapped ? setsOpp : setsZ;
-    var setsRight = isSwapped ? setsOpp : setsZ;
+    var setsRight = isSwapped ? setsZ : setsOpp;
 
     document.getElementById('uiTeamLeft').value = nameLeft;
     document.getElementById('uiTeamRight').value = nameRight;
@@ -604,7 +666,10 @@
       return;
     }
 
-    startTimerIfNeeded();
+    // Als de timer nog niet handmatig is gestart, start dan de vangnetmodus
+    if (!isRunning && !timerStopped) {
+      autoStartOnFirstPoint();
+    }
 
     var isZovoc = (!isSwapped && side === 'left') || (isSwapped && side === 'right');
     if (isZovoc) scoreZ++; else scoreOpp++;
@@ -665,7 +730,7 @@
       if (wasMatchOver && !isMatchOver) {
         timerStopped = false;
         var restoreElapsed = (last.elapsed !== undefined) ? last.elapsed : log[log.length - 1].time;
-        startTime = Date.now() - ((restoreElapsed - 30) * 1000);
+        startTime = Date.now() - ((restoreElapsed - timerBaseOffset) * 1000);
         isRunning = true;
         clearInterval(timerInterval);
         timerInterval = setInterval(updateTimerDisplay, 250);
